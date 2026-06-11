@@ -1,0 +1,10 @@
+# 数据与回测产物不进 git（也不给 agent 读原始文件）
+data/
+results/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
