@@ -18,14 +18,21 @@
 4. uv 装在 winget 路径，老 shell 可能不在 PATH；新开终端可直接用 `uv`。
 5. Windows 控制台 GBK：脚本已内置 `sys.stdout.reconfigure(encoding="utf-8")`。
 
-## 下一步：M2 回测引擎
+- **M2 回测引擎**（2026-06-12）：组合级日频引擎（决策 t 收盘执行赚 t+1 收益）、
+  涨跌停/停牌约束、费用模型、绩效指标、metrics.json + nav.png 落盘。21 个单测全过。
+- **M3 基线策略**（2026-06-12）：sma_cross / momentum / boll_revert，注册表接口。
+  6 组回测（2018~2026）已跑通：美股 momentum 最佳（cagr 30.3%, sharpe 1.04，超额 16%/年）；
+  A股 momentum 超额 9%/年；boll_revert 两市场均跑输基准。
+- **M4 Agent 层**（2026-06-12）：/research、/backtest、/review 三个 skills + CLAUDE.md 约定。
 
-- S1：pandas 向量化回测核心 + 费用/滑点模型（先写 200 行内设计概要确认再实现）。
-- S2：A股 T+1、涨跌停约束（必须带单元测试）。
-- S3：绩效指标 + 基准对比 + metrics.json 落盘。
+## 下一步：M5 投入使用
+
+- 日常：/research 提想法 → 写新策略到 strategies/ → /backtest 验证 → /review 复盘。
+- 候选改进：动量参数敏感性（lookback 60/120/250）、A股池扩到沪深300成分、波动率目标仓位。
 
 ## 待办/技术债
 
-- 起始日期目前用 2024-01-01（验证用）；正式研究前把历史拉到 2018-01-01（删掉 data/ 重拉或直接再跑一次 --start 2018-01-01 即可，增量合并会处理）。
-  注意：新浪 qfq 全量返回，重拉成本低；东财恢复后两源复权因子可能有差异，同一标的尽量保持单一来源。
+- 数据已补全 2018-01-02 起。混源情况：东财间歇可用，部分标的东财、部分新浪，
+  **volume 量纲不一致（手 vs 股）**，做量价因子前需统一。
 - cn-index 的东财失败 warn 每次都会打印一次，属预期噪音。
+- 扫参数（grid search）应做成确定性脚本，勿让 agent 循环跑回测烧 token。

@@ -10,6 +10,7 @@ dependencies = [
     "akshare>=1.14",
     "yfinance>=0.2.40",
     "pyyaml>=6.0",
+    "matplotlib>=3.9",
 ]
 
 [dependency-groups]

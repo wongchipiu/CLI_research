@@ -19,6 +19,19 @@
 
 ## 命令
 
-- 更新数据：`uv run python scripts/update_data.py`
-- 跑回测：`uv run python scripts/run_backtest.py --strategy <名> --market <cn|us>`
+- 更新数据：`uv run python scripts/update_data.py`（增量；质检 `scripts/check_data.py`）
+- 跑回测：`uv run python scripts/run_backtest.py --strategy <名> --market <cn|us> [-p k=v ...]`
+  策略：sma_cross / momentum / boll_revert（注册表见 src/quant/strategies/）
 - 测试：`uv run pytest`
+
+## Skills
+
+- `/research <想法>` 策略调研 → docs/research/ 笔记
+- `/backtest <策略> <市场> [k=v]` 跑回测并解读（只读 stdout JSON）
+- `/review` 对比 results/*/metrics.json 复盘
+
+## 回测引擎要点（src/quant/backtest/engine.py）
+
+- decision[t] 在 t 收盘执行、赚 t+1 收益（无前视）；权重行和 ≤1，余者现金。
+- A股：涨停(±9.8%)禁买/跌停禁卖、停牌冻结；T+1 由日频收盘调仓天然满足。
+- 费用：cn 买 0.13%/卖 0.18%；us 双边 0.1%。
