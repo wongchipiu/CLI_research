@@ -1,6 +1,6 @@
-# 数据与回测产物不进 git（也不给 agent 读原始文件）
-data/
-results/
+# 数据与回测产物不进 git（也不给 agent 读原始文件）；只匹配仓库根目录，勿误伤 src/quant/data
+/data/
+/results/
 
 # Python
 .venv/
