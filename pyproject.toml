@@ -2,7 +2,7 @@
 name = "quant-agent"
 version = "0.1.0"
 description = "个人量化研究系统：数据管道 + 回测引擎 + Claude Code 研究助手"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.2",
     "numpy>=1.26",
