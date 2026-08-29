@@ -1,96 +1,55 @@
 # quant-agent
 
-个人量化研究系统：纯 Python 数据/回测层 + Codex 研究助手层。
+个人量化研究系统：Python 数据与回测底座，结合相邻 `gpt_quant` 的研究证据验证器。
 
-## 当前状态
+**先读 [实用指南](docs/USER_GUIDE.md)**：怎样提出问题、运行命令、读结果、区分支持证据和反证，并写出可复查的结论。
 
-项目代码已经实现第一期主流程：
+## 快速练习（本机，无需联网）
 
-- 数据更新：A股用 akshare， 美股用 yfinance，失败时有 akshare 备援。
-- 本地存储：`data/daily/<market>/<symbol>.parquet`。
-- 数据质检：输出 `data/quality_summary.txt` 摘要。
-- 回测：`sma_cross`、`momentum`、`boll_revert` 三个基线策略。
-- 报告：每次回测写入 `results/<run>/metrics.json`、净值图和 CSV。
-- Agent skills：`/research`、`/backtest`、`/review`。
-
-注意：Agent 只读摘要，不直接读取 `data/` 原始数据或 `results/**/*.csv`。
-
-## 环境准备
-
-需要 Python 3.11+ 和 uv。
-
-如果 `uv` 不在当前终端 PATH 中，先新开一个 PowerShell 终端再试：
-
-```powershell
-uv --version
+```bash
+cd /Users/brucehuang/Documents/CLI_research
+.venv/bin/python scripts/demo_research.py
 ```
 
-如果仍然找不到 `uv`，安装或修复 uv：
+使用合成数据完成一次研究演示，并打印 `metrics.json` 路径。示例不可用于交易准入。
 
-```powershell
-winget install --id astral-sh.uv
+现有环境运行测试：
+
+```bash
+.venv/bin/python -m pytest -q
 ```
 
-重建项目虚拟环境：
+新环境需要 Python 3.11+ 和 uv，可在项目目录执行 `uv sync --dev`；命令中的 `.venv/bin/python` 可替换为 `uv run python`。本次开发没有重建环境或安装依赖。
 
-```powershell
-cd C:\claude\quant-agent-codex
-uv sync --dev
-```
+## 当前能力
 
-如果 `.venv` 指向了已经不存在的 Python，可先删除 `.venv` 后再执行 `uv sync --dev`。
+- A股/美股数据适配、Parquet 存储和质量摘要；实际来源连通性需单独验收。
+- 组合回测：默认收盘信号在下一交易日开盘模拟成交，计入费用与仓位限制。
+- 研究协议：训练 60%、验证 20%、最终测试 20%；只在训练段选参。
+- 滚动验证：每折在本折训练段重新选参，不将独立账户曲线拼成连续收益。
+- 实验记录：固定数据/源码指纹、时间边界和网格，记录最终测试使用状态。
+- 结果摘要、研究记录汇总及跨项目验证；Scanner 和多期限异动跟踪仍未实现。
 
 ## 常用命令
 
-运行测试：
+```bash
+# 会联网并更新本地行情；运行后检查质量
+.venv/bin/python scripts/update_data.py --market us --universe baseline
+.venv/bin/python scripts/check_data.py --quiet
 
-```powershell
-uv run pytest
+# 探索回测：仅用于研究，不能直接准入；请限定在预先确定的训练区间
+.venv/bin/python scripts/run_backtest.py --strategy momentum --market us --end 2022-12-30 -p lookback=120 -p top_n=2
+
+# 日期只是示例，先按实际数据覆盖确定并预览边界
+.venv/bin/python scripts/run_parameter_scan.py --strategy momentum --market us --start 2018-01-01 --end 2026-07-20 --study-file results/studies/momentum_001.json -p lookback=60,120,250 -p top_n=1,2 -p rebalance=20 --walk-forward --preview
+
+# 确认后执行同一条扫描命令，将 --preview 改为 --compact
+# 汇总记录；该月份是报告标签，写入时会覆盖同名月报
+.venv/bin/python scripts/summarize_results.py --month 2026-08
 ```
 
-更新全部市场数据：
+`run_backtest.py` 不再使用 `--train-ratio`/`--split-date` 做正式验证，请迁移到 `run_parameter_scan.py`。旧同日收盘行为需显式传 `--execution-model legacy_same_close`，其结果不能用于新版准入。
 
-```powershell
-uv run python scripts/update_data.py
-```
+完整结果由脚本保存；Agent 只读摘要，不直接读原始行情、大日志或交易明细 CSV。`final_test_status=completed` 只表示测试已执行，不表示盈利、准入或实盘授权。
 
-只更新某个市场：
-
-```powershell
-uv run python scripts/update_data.py --market cn
-uv run python scripts/update_data.py --market us
-```
-
-检查数据质量：
-
-```powershell
-uv run python scripts/check_data.py
-```
-
-跑回测：
-
-```powershell
-uv run python scripts/run_backtest.py --strategy sma_cross --market cn
-uv run python scripts/run_backtest.py --strategy momentum --market us -p lookback=60 -p top_n=2
-uv run python scripts/run_backtest.py --strategy boll_revert --market cn -p window=20 -p num_std=2
-```
-
-可选策略：
-
-- `sma_cross`
-- `momentum`
-- `boll_revert`
-
-回测 stdout 会打印 `metrics.json` 同款 JSON 摘要；完整结果在 `results/<run>/`。
-
-## Codex 用法
-
-日常研究建议按一个任务一个对话：
-
-```text
-/research 想研究的策略想法
-/backtest momentum us lookback=60 top_n=2
-/review
-```
-
-开发新功能时，先读 `docs/REQUIREMENTS.md`、`docs/PLAN.md`、`docs/STATUS.md`，一次只做 PLAN 里的一个 S 条目。
+开发进度见 [PLAN](docs/PLAN.md)、[STATUS](docs/STATUS.md)、[整合计划](docs/INTEGRATION_PLAN.md) 和 [S2 设计与验收](docs/M7_S2.md)。每个开发对话只完成一个 S 条目。
