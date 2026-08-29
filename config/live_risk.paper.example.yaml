@@ -3,6 +3,7 @@ broker:
   host: 127.0.0.1
   port: 7497
   client_id: 71
+  # Preflight rejects this placeholder; replace it with the exact DU account.
   expected_account: "DU_REPLACE_WITH_EXACT_PAPER_ACCOUNT"
   environment: paper
   # true performs all calculations and writes planned actions, but sends no cancels/orders.

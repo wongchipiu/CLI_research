@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import time
 from logging.handlers import RotatingFileHandler
@@ -10,7 +11,8 @@ from logging.handlers import RotatingFileHandler
 from .config import AppConfig, load_config
 from .controller import RiskController
 from .notify import WebhookNotifier
-from .state import AuditWriter
+from .preflight import preflight_report
+from .state import AuditWriter, StatusWriter
 from .tws import TwsBroker
 
 
@@ -33,6 +35,7 @@ def _configure_logging(config: AppConfig) -> logging.Logger:
 def run(config: AppConfig, *, once: bool = False) -> int:
     logger = _configure_logging(config)
     audit = AuditWriter(config.runtime.audit_path)
+    status = StatusWriter(config.runtime.status_path)
     notifier = WebhookNotifier(config.runtime.webhook_env_var)
     broker = TwsBroker(config.broker)
     controller = RiskController(broker, config, audit=audit, notifier=notifier)
@@ -50,6 +53,7 @@ def run(config: AppConfig, *, once: bool = False) -> int:
     )
     last_status_log = 0.0
     last_level = None
+    failure_latched = False
     try:
         while True:
             try:
@@ -59,6 +63,10 @@ def run(config: AppConfig, *, once: bool = False) -> int:
                     logger.info("connected to TWS/IB Gateway")
                     audit.append("BROKER_CONNECTED")
                 snapshot = controller.run_once()
+                if failure_latched:
+                    failure_latched = False
+                    audit.append("SERVICE_HEALTH_RECOVERED", account=snapshot.account)
+                    notifier.send("SERVICE_HEALTH_RECOVERED", {"account": snapshot.account})
                 for request_id, code, message in broker.pop_errors():
                     audit.append(
                         "BROKER_MESSAGE",
@@ -100,6 +108,20 @@ def run(config: AppConfig, *, once: bool = False) -> int:
             except Exception as exc:
                 logger.exception("risk loop failed: %s", exc)
                 audit.append("RISK_LOOP_ERROR", error=repr(exc))
+                status.write_error(
+                    controller.state,
+                    f"risk loop failed: {type(exc).__name__}: {exc}",
+                    account=config.broker.expected_account,
+                )
+                if not failure_latched:
+                    notifier.send(
+                        "SERVICE_UNHEALTHY",
+                        {
+                            "account": config.broker.expected_account,
+                            "error": f"{type(exc).__name__}: {exc}",
+                        },
+                    )
+                    failure_latched = True
                 broker.disconnect()
                 if once:
                     return 1
@@ -116,8 +138,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Paper-first IBKR account risk kill switch")
     parser.add_argument("--config", required=True, help="Path to live-risk YAML configuration")
     parser.add_argument("--once", action="store_true", help="Read and evaluate one snapshot")
+    parser.add_argument("--preflight", action="store_true", help="Check local readiness without connecting to TWS")
     args = parser.parse_args()
-    return run(load_config(args.config), once=args.once)
+    config = load_config(args.config)
+    if args.preflight:
+        report = preflight_report(config)
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0 if report["ready"] else 2
+    return run(config, once=args.once)
 
 
 if __name__ == "__main__":

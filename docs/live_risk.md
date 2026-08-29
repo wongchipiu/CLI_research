@@ -1,6 +1,6 @@
 # IBKR 账户级日损熔断器
 
-该服务是一个不依赖 LLM 的确定性守护程序。默认配置只读、只允许 Paper 环境；它不会通过 ChatGPT 插件下单。
+该服务是一个不依赖 LLM 的确定性守护程序。默认配置只读、只允许 Paper 环境；它不会通过 ChatGPT 插件下单。M6-S2 的夜间部署与接口验收见 [M6-S2 验收记录](milestones/m6-s2-ibkr-paper-risk-guard.md)。
 
 ## 已实现规则
 
@@ -79,6 +79,14 @@ broker:
 
 ## 5. 只读连通性测试
 
+先做不连接 TWS 的本地预检：
+
+```bash
+.venv/bin/python scripts/run_live_risk.py --config config/live_risk.paper.yaml --preflight
+```
+
+必须看到 `ready: true`。它检查 Paper 环境、精确 `DU` 账户、本机地址、绝对运行路径及官方 `ibapi`，但不会连接账户或发单。
+
 ```powershell
 uv run python scripts/run_live_risk.py --config config/live_risk.paper.yaml --once
 ```
@@ -95,6 +103,8 @@ uv run python scripts/run_live_risk.py --config config/live_risk.paper.yaml --on
 ```powershell
 uv run python scripts/run_live_risk.py --config config/live_risk.paper.yaml
 ```
+
+连接或循环异常时，即使拿不到新账户快照，服务也会把 `live_risk_status` v1 写成 `healthy=false`。仅看到进程存在不等于仍受保护，应同时监控 `status.json.updated_at` 和 `healthy`。
 
 ## 6. Paper下单验收
 
@@ -115,6 +125,22 @@ uv run python scripts/run_live_risk.py --config config/live_risk.paper.yaml
 
 如设置 `LIVE_RISK_WEBHOOK_URL`，重大风险事件会额外发送JSON POST通知。Webhook失败不会阻止本地风险动作。
 
+## 7. macOS 夜间守护
+
+先在前台完成只读和 Paper 小仓位验收，再生成 launchd 配置；生成器只写 plist，不会自动安装或启动服务：
+
+```bash
+cd /Users/brucehuang/Documents/CLI_research
+.venv/bin/python scripts/render_live_risk_launchd.py \
+  --config config/live_risk.paper.yaml \
+  --output var/live_risk/com.quant.live-risk-paper.plist
+plutil -lint var/live_risk/com.quant.live-risk-paper.plist
+```
+
+plist 使用绝对路径、`KeepAlive` 和 `/usr/bin/caffeinate -im`。确认内容后，再由你手工复制到 `~/Library/LaunchAgents/` 并用 launchd 加载；本项目不会替你修改系统服务。
+
+重要限制：`caffeinate` 能阻止普通空闲睡眠，但**不能保证合盖后的 Mac 继续运行**。夜间保护要求 Mac 接电、保持开盖且 TWS/IB Gateway 已登录并配置自动重启；更稳妥的长期形态是经 Paper 验收后部署到始终在线的受控主机。TWS/IB Gateway 的每周重新认证仍需人工安排。
+
 ## 实盘保护
 
 实盘下单默认被锁死。即使未来修改为 `environment: live`，也必须同时满足：
@@ -129,6 +155,7 @@ uv run python scripts/run_live_risk.py --config config/live_risk.paper.yaml
 ## 已知边界
 
 - `MKT DAY`股票单在停牌、闭市或无流动性时无法保证成交。
+- 账户损失阈值是触发器，不是成交价格保证；跳空可能让实际损失显著超过阈值。
 - 默认 `outside_rth: false`；盘前盘后触发会保持锁定并等待可执行时段，不能保证以5%损失成交。
 - `reqGlobalCancel`会撤销人工和其他API客户端的所有活动订单，这是有意的强制风险行为。
 - 本程序能阻止自己的策略继续开仓，并周期性撤单，但不能禁止人在TWS里重新手工下单；清仓锁定后出现的新股票仓位会再次被关闭。

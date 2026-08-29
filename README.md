@@ -2,7 +2,7 @@
 
 个人量化研究系统：Python 数据与回测底座，结合相邻 `gpt_quant` 的研究证据验证器。
 
-**先读 [实用指南](docs/USER_GUIDE.md)**：怎样提出问题、运行命令、读结果、区分支持证据和反证，并写出可复查的结论。
+**先看 [文档导航](docs/README.md)**；第一次使用可直接读 [实用指南](docs/USER_GUIDE.md)：怎样提出问题、运行命令、读结果、区分支持证据和反证，并写出可复查的结论。
 
 ## 快速练习（本机，无需联网）
 
@@ -26,7 +26,7 @@ cd /Users/brucehuang/Documents/gpt_quant
 .venv/bin/python -m pytest -q
 ```
 
-新环境需要 Python 3.11+ 和 uv，可在项目目录执行 `uv sync --dev`；命令中的 `.venv/bin/python` 可替换为 `uv run python`。本次开发没有重建环境或安装依赖。
+新环境需要 Python 3.11+ 和 uv。普通开发可执行 `uv sync --dev`；安装跨项目统一命令执行 `uv sync --no-editable --extra integration`。命令中的 `.venv/bin/python` 可替换为 `uv run python`。
 
 ## 当前能力
 
@@ -56,8 +56,22 @@ cd /Users/brucehuang/Documents/gpt_quant
 .venv/bin/python scripts/summarize_results.py --month 2026-08
 ```
 
+完成预览并冻结实验后，可用一个命令执行“目标市场质量摘要 → 正式参数扫描 → `gpt_quant` 验证”：
+
+```bash
+.venv/bin/quant workflow --workspace config/workspace.yaml \
+  --strategy momentum --market us --universe baseline \
+  --membership-file config/universe_history.csv \
+  --start 2018-01-01 --end 2026-07-20 \
+  --study-file momentum_001.json \
+  -p lookback=60,120,250 -p top_n=1,2 -p rebalance=20 \
+  --walk-forward
+```
+
+正式工作流会按原规则一次性消费最终测试；首次使用前先阅读 [M7-S4 说明](docs/milestones/m7-s4-unified-cli-and-contracts.md)。相对实验路径固定解析到 `var/studies/`，从其他 cwd 启动也仍写入本项目配置的 `results/`。
+
 `run_backtest.py` 不再使用 `--train-ratio`/`--split-date` 做正式验证，请迁移到 `run_parameter_scan.py`。旧同日收盘行为需显式传 `--execution-model legacy_same_close`，其结果不能用于新版准入。
 
 完整结果由脚本保存；Agent 只读摘要，不直接读原始行情、大日志或交易明细 CSV。`final_test_status=completed` 只表示测试已执行，不表示盈利、准入或实盘授权。
 
-开发进度见 [PLAN](docs/PLAN.md)、[STATUS](docs/STATUS.md)、[整合计划](docs/INTEGRATION_PLAN.md)、[S2 研究口径](docs/M7_S2.md) 和 [S3 模拟账本](docs/M7_S3.md)。每个开发对话只完成一个 S 条目。
+开发入口统一见 [文档导航](docs/README.md)。路线图看 [PLAN](docs/PLAN.md)，当前状态看 [STATUS](docs/STATUS.md)，每个开发对话只完成一个 S 条目。

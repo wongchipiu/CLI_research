@@ -50,6 +50,9 @@ class StatusWriter:
         message: str,
     ) -> None:
         payload = {
+            "schema_version": 1,
+            "artifact_type": "live_risk_status",
+            "updated_at": datetime.now(UTC).isoformat(),
             "account": snapshot.account,
             "as_of": snapshot.as_of.isoformat(),
             "pnl_updated_at": snapshot.pnl_updated_at.isoformat(),
@@ -57,6 +60,24 @@ class StatusWriter:
             "daily_pnl": str(snapshot.daily_pnl),
             "position_count": len(snapshot.positions),
             "healthy": healthy,
+            "message": message,
+            "state": state.to_dict(),
+        }
+        _atomic_json_write(self.path, payload)
+
+    def write_error(self, state: RuntimeState, message: str, *, account: str = "") -> None:
+        """Publish service failure even when no broker snapshot is available."""
+        payload = {
+            "schema_version": 1,
+            "artifact_type": "live_risk_status",
+            "updated_at": datetime.now(UTC).isoformat(),
+            "account": account,
+            "as_of": None,
+            "pnl_updated_at": None,
+            "net_liquidation": None,
+            "daily_pnl": None,
+            "position_count": None,
+            "healthy": False,
             "message": message,
             "state": state.to_dict(),
         }

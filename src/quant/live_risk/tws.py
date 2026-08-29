@@ -26,6 +26,7 @@ class TwsBroker:
         self._order_id_lock = threading.Lock()
         self._data_lock = threading.Lock()
         self._error_lock = threading.Lock()
+        self._orders_lock = threading.Lock()
         self._connected_event = threading.Event()
         self._accounts_event = threading.Event()
         self._summary_event = threading.Event()
@@ -40,6 +41,7 @@ class TwsBroker:
         self._server_connected = False
         self.errors: list[tuple[int, int, str]] = []
         self.order_statuses: dict[int, dict] = {}
+        self.open_orders: dict[int, dict] = {}
 
     def connect(self) -> None:
         if self.is_connected():
@@ -91,8 +93,12 @@ class TwsBroker:
                 app.disconnect()
             except Exception:
                 pass
+        thread = self._thread
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=1.0)
         self._server_connected = False
         self._app = None
+        self._thread = None
 
     def is_connected(self) -> bool:
         app = self._app
@@ -139,6 +145,10 @@ class TwsBroker:
             raise RuntimeError("position account does not match connected account")
         if position.sec_type != "STK":
             raise ValueError("phase one only submits close orders for stocks")
+        if quantity > abs(position.quantity):
+            raise ValueError("close quantity cannot exceed the current position")
+        if not order_ref.startswith("risk-"):
+            raise ValueError("close-only broker requires a risk- order_ref")
 
         from ibapi.contract import Contract
         from ibapi.order import Order
@@ -180,6 +190,9 @@ class TwsBroker:
         self._account = ""
         self._next_order_id = None
         self._server_connected = False
+        with self._orders_lock:
+            self.order_statuses = {}
+            self.open_orders = {}
         with self._data_lock:
             self._account_values = {}
             self._daily_pnl = None
@@ -222,7 +235,7 @@ class TwsBroker:
                 EClient.__init__(self, self)
 
             def nextValidId(self, orderId):
-                owner._next_order_id = int(orderId)
+                owner._advance_order_id(int(orderId))
                 owner._server_connected = True
                 owner._connected_event.set()
 
@@ -278,6 +291,20 @@ class TwsBroker:
             def positionEnd(self):
                 owner._positions_event.set()
 
+            def openOrder(self, orderId, contract, order, orderState):
+                order_id = int(orderId)
+                owner._advance_order_id(order_id + 1)
+                with owner._orders_lock:
+                    owner.open_orders[order_id] = {
+                        "contract_id": int(getattr(contract, "conId", 0)),
+                        "symbol": str(getattr(contract, "symbol", "")),
+                        "action": str(getattr(order, "action", "")),
+                        "quantity": str(getattr(order, "totalQuantity", "")),
+                        "order_type": str(getattr(order, "orderType", "")),
+                        "order_ref": str(getattr(order, "orderRef", "")),
+                        "status": str(getattr(orderState, "status", "")),
+                    }
+
             def orderStatus(
                 self,
                 orderId,
@@ -292,13 +319,21 @@ class TwsBroker:
                 whyHeld,
                 mktCapPrice,
             ):
-                owner.order_statuses[int(orderId)] = {
-                    "status": status,
-                    "filled": str(filled),
-                    "remaining": str(remaining),
-                    "avg_fill_price": avgFillPrice,
-                    "updated_at": datetime.now(UTC).isoformat(),
-                }
+                order_id = int(orderId)
+                owner._advance_order_id(order_id + 1)
+                with owner._orders_lock:
+                    owner.order_statuses[order_id] = {
+                        "status": status,
+                        "filled": str(filled),
+                        "remaining": str(remaining),
+                        "avg_fill_price": avgFillPrice,
+                        "updated_at": datetime.now(UTC).isoformat(),
+                    }
+                    if str(status) in {"Cancelled", "ApiCancelled", "Filled", "Inactive"}:
+                        owner.open_orders.pop(order_id, None)
+
+            def connectionClosed(self):
+                owner._server_connected = False
 
             def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
                 with owner._error_lock:
@@ -311,3 +346,8 @@ class TwsBroker:
                     owner._server_connected = True
 
         return App()
+
+    def _advance_order_id(self, candidate: int) -> None:
+        with self._order_id_lock:
+            if self._next_order_id is None or candidate > self._next_order_id:
+                self._next_order_id = candidate

@@ -16,6 +16,15 @@ dependencies = [
 [dependency-groups]
 dev = ["pytest>=8.0"]
 
+[project.optional-dependencies]
+integration = ["gpt-quant>=0.1,<0.2"]
+
+[project.scripts]
+quant = "quant.cli:main"
+
+[tool.uv.sources]
+gpt-quant = { path = "../gpt_quant" }
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

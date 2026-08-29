@@ -108,7 +108,7 @@ class AppConfig:
 
 
 def load_config(path: str | Path) -> AppConfig:
-    config_path = Path(path)
+    config_path = Path(path).expanduser().resolve()
     payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     base = config_path.parent.parent if config_path.parent.name == "config" else config_path.parent
 

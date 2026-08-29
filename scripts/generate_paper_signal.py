@@ -17,13 +17,21 @@ from quant.backtest.risk_overlay import RiskOverlayConfig, apply_risk_overlay
 from quant.backtest.study import data_fingerprint
 from quant.data.research import load_market_bars
 from quant.strategies import get_strategy
+from quant.workspace import WorkspaceConfig
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("metrics_path", type=Path)
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--workspace", type=Path, help="versioned workspace YAML; paths are cwd-independent")
     args = parser.parse_args()
+    if args.workspace:
+        workspace = WorkspaceConfig.load(args.workspace)
+        workspace.apply()
+        args.metrics_path = workspace.resolve_project_path(args.metrics_path)
+        if args.output:
+            args.output = workspace.resolve_project_path(args.output)
 
     raw = args.metrics_path.read_bytes()
     payload = json.loads(raw)

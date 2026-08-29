@@ -2,13 +2,21 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import json
+from pathlib import Path
+import plistlib
+import sys
+import types
 
 import pytest
 
-from quant.live_risk.config import AppConfig, BrokerConfig, RiskConfig, RuntimeConfig
+from quant.live_risk.config import AppConfig, BrokerConfig, RiskConfig, RuntimeConfig, load_config
 from quant.live_risk.controller import RiskController
 from quant.live_risk.fake import FakeBroker
 from quant.live_risk.models import Position, RiskLevel
+from quant.live_risk.launchd import render_launchd_plist
+from quant.live_risk.preflight import preflight_report
+from quant.live_risk.tws import TwsBroker
 
 
 def stock(symbol: str, contract_id: int, quantity: str) -> Position:
@@ -172,3 +180,202 @@ def test_start_nav_is_inferred_from_net_liq_and_daily_pnl(tmp_path):
     observe(controller, broker, "-3000")
     assert controller.state.start_nav == "100000"
     assert controller.state.last_loss_fraction == pytest.approx(-0.03)
+
+
+def test_service_failure_is_published_without_a_broker_snapshot(tmp_path, monkeypatch):
+    from quant.live_risk import main as service
+
+    class FailingBroker:
+        def __init__(self, broker_config):
+            self.config = broker_config
+
+        def is_connected(self):
+            return False
+
+        def connect(self):
+            raise ConnectionError("TWS unavailable")
+
+        def disconnect(self):
+            return None
+
+    monkeypatch.setattr(service, "TwsBroker", FailingBroker)
+    result = service.run(config(tmp_path, dry_run=True), once=True)
+    payload = json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))
+
+    assert result == 1
+    assert payload["schema_version"] == 1
+    assert payload["artifact_type"] == "live_risk_status"
+    assert payload["healthy"] is False
+    assert payload["account"] == "DU_TEST"
+    assert "TWS unavailable" in payload["message"]
+
+
+def test_launchd_plist_keeps_night_guard_alive_without_installing_it(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    paper_config = tmp_path / "live_risk.paper.yaml"
+    paper_config.write_text("broker: {}\n", encoding="utf-8")
+    payload = plistlib.loads(
+        render_launchd_plist(root, paper_config, python_path=sys.executable)
+    )
+
+    assert payload["RunAtLoad"] is True
+    assert payload["KeepAlive"] is True
+    assert payload["WorkingDirectory"] == str(root)
+    assert payload["ProgramArguments"][:3] == ["/usr/bin/caffeinate", "-im", sys.executable]
+    assert str(root / "scripts" / "run_live_risk.py") in payload["ProgramArguments"]
+    assert "launchctl" not in " ".join(payload["ProgramArguments"])
+
+
+def test_tws_broker_submits_only_monotonic_close_orders(monkeypatch):
+    installed = _install_fake_ibapi(monkeypatch)
+    broker = TwsBroker(BrokerConfig(expected_account="DU_TEST", dry_run=False))
+    broker.connect()
+    long_position = broker.snapshot().positions[0]
+
+    first_id = broker.submit_close(long_position, Decimal("4"), "risk-test-long")
+    first_order = installed["client"].placed_orders[-1][2]
+    assert first_id == 10
+    assert first_order.account == "DU_TEST"
+    assert first_order.action == "SELL"
+    assert first_order.orderType == "MKT"
+    assert first_order.totalQuantity == Decimal("4")
+    assert first_order.tif == "DAY"
+    assert first_order.outsideRth is False
+    assert first_order.transmit is True
+
+    broker._app.orderStatus(50, "Submitted", 0, 4, 0, 0, 0, 0, 71, "", 0)
+    short_position = stock("SHORT", 2, "-5")
+    second_id = broker.submit_close(short_position, Decimal("5"), "risk-test-short")
+    assert second_id == 51
+    assert installed["client"].placed_orders[-1][2].action == "BUY"
+
+    with pytest.raises(ValueError, match="cannot exceed"):
+        broker.submit_close(long_position, Decimal("11"), "risk-too-large")
+    with pytest.raises(ValueError, match="risk- order_ref"):
+        broker.submit_close(long_position, Decimal("1"), "manual-order")
+
+    broker._app.error(-1, 1101, "data lost")
+    assert broker.is_connected() is False
+    broker._app.error(-1, 1102, "data maintained")
+    assert broker.is_connected() is True
+    broker._app.connectionClosed()
+    assert broker.is_connected() is False
+    broker.disconnect()
+
+
+def test_preflight_is_read_only_and_requires_paper_dependencies(tmp_path):
+    app_config = config(tmp_path, dry_run=True)
+    missing = preflight_report(app_config, ibapi_available=False)
+    ready = preflight_report(app_config, ibapi_available=True)
+
+    assert missing["artifact_type"] == "live_risk_preflight"
+    assert missing["ready"] is False
+    assert {check["name"] for check in missing["checks"] if not check["passed"]} == {
+        "official_ibapi_installed"
+    }
+    assert ready["ready"] is True
+    assert ready["execution_mode"] == "DRY_RUN"
+
+
+def test_relative_config_resolves_runtime_paths_from_project_root(tmp_path, monkeypatch):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    path = config_dir / "paper.yaml"
+    path.write_text(
+        "broker:\n  expected_account: DU_TEST\n"
+        "runtime:\n  state_path: var/live_risk/state.json\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    loaded = load_config("config/paper.yaml")
+
+    assert loaded.runtime.state_path == tmp_path / "var" / "live_risk" / "state.json"
+    assert loaded.runtime.state_path.is_absolute()
+
+
+def _install_fake_ibapi(monkeypatch):
+    package = types.ModuleType("ibapi")
+    client_module = types.ModuleType("ibapi.client")
+    wrapper_module = types.ModuleType("ibapi.wrapper")
+    contract_module = types.ModuleType("ibapi.contract")
+    order_module = types.ModuleType("ibapi.order")
+    installed = {}
+
+    class EWrapper:
+        pass
+
+    class EClient:
+        def __init__(self, wrapper):
+            self.wrapper = wrapper
+            self.connected = False
+            self.placed_orders = []
+            self.global_cancel_count = 0
+            installed["client"] = self
+
+        def connect(self, host, port, clientId):
+            self.connected = True
+            self.wrapper.nextValidId(10)
+            self.wrapper.managedAccounts("DU_TEST")
+
+        def run(self):
+            return None
+
+        def isConnected(self):
+            return self.connected
+
+        def disconnect(self):
+            self.connected = False
+
+        def reqAccountSummary(self, req_id, group, tags):
+            self.wrapper.accountSummary(req_id, "DU_TEST", "NetLiquidation", "100000", "USD")
+            self.wrapper.accountSummaryEnd(req_id)
+
+        def reqPnL(self, req_id, account, model_code):
+            self.wrapper.pnl(req_id, -100.0, -100.0, 0.0)
+
+        def reqPositions(self):
+            contract = types.SimpleNamespace(
+                conId=1,
+                symbol="AAPL",
+                secType="STK",
+                currency="USD",
+                exchange="SMART",
+                primaryExchange="NASDAQ",
+            )
+            self.wrapper.position("DU_TEST", contract, Decimal("10"), 100.0)
+            self.wrapper.positionEnd()
+
+        def cancelPnL(self, request_id):
+            return None
+
+        def cancelAccountSummary(self, request_id):
+            return None
+
+        def cancelPositions(self):
+            return None
+
+        def reqGlobalCancel(self):
+            self.global_cancel_count += 1
+
+        def placeOrder(self, order_id, contract, order):
+            self.placed_orders.append((order_id, contract, order))
+
+    class Contract:
+        pass
+
+    class Order:
+        pass
+
+    client_module.EClient = EClient
+    wrapper_module.EWrapper = EWrapper
+    contract_module.Contract = Contract
+    order_module.Order = Order
+    for name, module in {
+        "ibapi": package,
+        "ibapi.client": client_module,
+        "ibapi.wrapper": wrapper_module,
+        "ibapi.contract": contract_module,
+        "ibapi.order": order_module,
+    }.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    return installed

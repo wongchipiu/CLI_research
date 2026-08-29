@@ -15,8 +15,8 @@ from quant.backtest import engine, report
 from quant.backtest.risk_overlay import RiskOverlayConfig
 from quant.backtest.study import bounds, data_fingerprint, interval, locked_manifest, run_study, sliced
 from quant.data.research import load_market_bars
-from quant.data.universe import list_universe_profiles
 from quant.strategies import get_strategy, list_strategies
+from quant.workspace import WorkspaceConfig
 
 
 def parse_value(value):
@@ -46,8 +46,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--strategy", required=True, choices=list_strategies())
     parser.add_argument("--market", required=True, choices=["cn", "us"])
-    parser.add_argument("--universe", choices=list_universe_profiles())
+    parser.add_argument("--universe")
     parser.add_argument("--membership-file")
+    parser.add_argument("--workspace", type=Path, help="versioned workspace YAML; paths are cwd-independent")
     parser.add_argument("--start")
     parser.add_argument("--end")
     parser.add_argument("--study-file", required=True, type=Path, help="persistent experiment record; do not reuse a consumed final test")
@@ -69,6 +70,12 @@ def main():
     parser.add_argument("-p", "--param", action="append", default=[])
     args = parser.parse_args()
     try:
+        if args.workspace:
+            workspace = WorkspaceConfig.load(args.workspace)
+            workspace.apply()
+            args.study_file = workspace.resolve_study_path(args.study_file)
+            if args.membership_file:
+                args.membership_file = str(workspace.resolve_project_path(args.membership_file))
         grid = parse_grid(args.param)
         bars = load_market_bars(args.market, args.universe, args.membership_file)
         index = bars.close.index

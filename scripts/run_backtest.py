@@ -14,8 +14,8 @@ from quant.backtest import engine, metrics, report
 from quant.backtest.risk_overlay import RiskOverlayConfig, apply_risk_overlay
 from quant.backtest.study import sliced
 from quant.data.research import load_market_bars
-from quant.data.universe import list_universe_profiles
 from quant.strategies import get_strategy, list_strategies
+from quant.workspace import WorkspaceConfig
 
 
 def parse_params(items):
@@ -40,8 +40,9 @@ def main():
     parser.add_argument("--market", required=True, choices=["cn", "us"])
     parser.add_argument("--start")
     parser.add_argument("--end")
-    parser.add_argument("--universe", choices=list_universe_profiles())
+    parser.add_argument("--universe")
     parser.add_argument("--membership-file")
+    parser.add_argument("--workspace", type=Path, help="versioned workspace YAML; paths are cwd-independent")
     parser.add_argument("--execution-model", choices=["next_open_v1", "legacy_same_close"], default="next_open_v1")
     parser.add_argument("--max-position-weight", type=float, default=1.0)
     parser.add_argument("--max-gross-exposure", type=float, default=1.0)
@@ -52,6 +53,11 @@ def main():
     parser.add_argument("-p", "--param", action="append", default=[])
     args = parser.parse_args()
     try:
+        if args.workspace:
+            workspace = WorkspaceConfig.load(args.workspace)
+            workspace.apply()
+            if args.membership_file:
+                args.membership_file = str(workspace.resolve_project_path(args.membership_file))
         bars = load_market_bars(args.market, args.universe, args.membership_file)
         index = bars.close.index
         bars = sliced(bars, int(index.searchsorted(args.start)) if args.start else 0,

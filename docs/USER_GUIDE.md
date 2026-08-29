@@ -123,6 +123,20 @@ cd /Users/brucehuang/Documents/CLI_research
 
 确认预览、数据和预先写好的规则后，执行第 5 节同一条扫描命令，将最后的 `--preview` 改为 `--compact`。
 
+也可以改用 M7-S4 的统一入口；它会先检查目标市场数据，再运行同一套正式扫描并交给 `gpt_quant` 验证：
+
+```bash
+.venv/bin/quant workflow --workspace config/workspace.yaml \
+  --strategy momentum --market us --universe baseline \
+  --membership-file config/universe_history.csv \
+  --start 2018-01-01 --end 2026-07-20 \
+  --study-file momentum_001.json \
+  -p lookback=60,120,250 -p top_n=1,2 -p rebalance=20 \
+  --walk-forward --wf-train-days 756 --wf-test-days 126
+```
+
+统一入口不是预览命令：它同样可能消耗最终测试。相对的 `--study-file` 固定写入 `var/studies/`，结果固定写入配置中的 `results/`，不会随终端 cwd 改变。退出码 2 表示数据、契约或研究闸门已阻止流程；不要把 `BLOCKED` 当作程序运行成功后的可交易结论。
+
 系统会做以下工作：
 
 1. 保存数据指纹、源码指纹、边界、费用、参数网格和配置。
