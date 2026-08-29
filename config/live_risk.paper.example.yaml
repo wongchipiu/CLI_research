@@ -1,0 +1,38 @@
+broker:
+  # TWS paper defaults to 7497; IB Gateway paper commonly uses 4002.
+  host: 127.0.0.1
+  port: 7497
+  client_id: 71
+  expected_account: "DU_REPLACE_WITH_EXACT_PAPER_ACCOUNT"
+  environment: paper
+  # true performs all calculations and writes planned actions, but sends no cancels/orders.
+  dry_run: true
+  allow_live_trading: false
+  connect_timeout_seconds: 15
+  order_type: MKT
+  time_in_force: DAY
+  outside_rth: false
+
+risk:
+  freeze_loss: 0.03
+  reduce_loss: 0.04
+  liquidate_loss: 0.05
+  reduce_fraction: 0.50
+  confirm_samples: 2
+  managed_security_types: [STK]
+
+runtime:
+  timezone: America/New_York
+  poll_seconds: 1
+  reconnect_seconds: 5
+  max_pnl_age_seconds: 10
+  cancel_on_stale_data: true
+  freeze_cancel_interval_seconds: 5
+  fill_check_seconds: 8
+  max_fast_reconcile_attempts: 3
+  manual_retry_seconds: 60
+  state_path: var/live_risk/state.json
+  status_path: var/live_risk/status.json
+  audit_path: var/live_risk/audit.jsonl
+  log_path: var/live_risk/service.log
+  webhook_env_var: LIVE_RISK_WEBHOOK_URL

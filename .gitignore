@@ -8,3 +8,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
+
+# Live-risk runtime state and logs
+/var/live_risk/
+/config/live_risk.paper.yaml
