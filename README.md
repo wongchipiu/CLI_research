@@ -13,6 +13,13 @@ cd /Users/brucehuang/Documents/CLI_research
 
 使用合成数据完成一次研究演示，并打印 `metrics.json` 路径。示例不可用于交易准入。
 
+模拟账本的信号重放与价格时效练习：
+
+```bash
+cd /Users/brucehuang/Documents/gpt_quant
+../CLI_research/.venv/bin/python scripts/demo_paper_workflow.py
+```
+
 现有环境运行测试：
 
 ```bash
@@ -29,6 +36,7 @@ cd /Users/brucehuang/Documents/CLI_research
 - 滚动验证：每折在本折训练段重新选参，不将独立账户曲线拼成连续收益。
 - 实验记录：固定数据/源码指纹、时间边界和网格，记录最终测试使用状态。
 - 结果摘要、研究记录汇总及跨项目验证；Scanner 和多期限异动跟踪仍未实现。
+- 本地模拟账本：次日开盘信号、执行价格时效、证据哈希、重放保护和重启恢复；不连接券商。
 
 ## 常用命令
 
@@ -52,4 +60,4 @@ cd /Users/brucehuang/Documents/CLI_research
 
 完整结果由脚本保存；Agent 只读摘要，不直接读原始行情、大日志或交易明细 CSV。`final_test_status=completed` 只表示测试已执行，不表示盈利、准入或实盘授权。
 
-开发进度见 [PLAN](docs/PLAN.md)、[STATUS](docs/STATUS.md)、[整合计划](docs/INTEGRATION_PLAN.md) 和 [S2 设计与验收](docs/M7_S2.md)。每个开发对话只完成一个 S 条目。
+开发进度见 [PLAN](docs/PLAN.md)、[STATUS](docs/STATUS.md)、[整合计划](docs/INTEGRATION_PLAN.md)、[S2 研究口径](docs/M7_S2.md) 和 [S3 模拟账本](docs/M7_S3.md)。每个开发对话只完成一个 S 条目。

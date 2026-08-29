@@ -178,7 +178,7 @@ PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
 
 当前代码默认要求完整历史至少 756 个交易日、最终段完成持仓至少 50 次、最终段正收益、Sharpe/Calmar 不低于 1、最大回撤不超过 20%，并检查时点股票池、验证稳定性、滚动验证与邻参。它们是项目内的筛选规则，不是经过证明的盈利保证。
 
-模拟日数、证据撤销和订单重放仍属于 S3。新口径证据目前不能通过旧的 `generate_paper_signal.py` 收盘价桥接去调仓；程序会拒绝，避免用旧成交口径冒充次日开盘。不要在此阶段连接实盘账户。
+S3 已实现本地模拟账本的日期、证据哈希、信号重放和执行价格时效保护；新口径信号不再携带可冒充成交价的收盘执行价格。它仍是本地确定性模拟，不连接券商，也不代表实盘授权。
 
 ## 9. 把结果写成可复查的结论
 
@@ -220,3 +220,61 @@ cd /Users/brucehuang/Documents/CLI_research
 当前边界：未实现完整交易日历、所有A股板块交易规则、真实订单撮合或分钟级成交；免费来源的时效和复权一致性仍需逐次验证。自定义策略必须通过“改变未来数据不改变历史信号”的因果性测试；系统隔离了选参区间，但不会自动证明任意策略代码没有前视逻辑。
 
 **最值得带走的习惯：先写问题和失败条件，再运行；先核对证据，再看收益；允许结论是“暂时不知道”。**
+
+## 11. 从合格证据进入本地模拟观察
+
+先运行完全离线案例，学习信号为什么只能执行一次，以及怎样区分“系统保护有效”和“策略有效”：
+
+```bash
+cd /Users/brucehuang/Documents/gpt_quant
+../CLI_research/.venv/bin/python -B scripts/demo_paper_workflow.py
+```
+
+逐项推理见 [模拟信号案例](CASE_STUDY_PAPER_SIGNAL.md)。案例使用合成证据，只验证账本规则，不验证投资策略。
+
+真实流程必须从通过验证器的 `metrics.json` 开始。以下路径和时间都是格式示例，必须替换成你自己的文件、真实下一交易日和带时区的价格时间：
+
+```bash
+# 1. 再次确认研究证据；decision 必须是 PAPER_TRADING
+PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
+/Users/brucehuang/Documents/CLI_research/.venv/bin/python -m gpt_quant.cli validate-cli-result \
+  /absolute/path/to/metrics.json
+
+# 2. 为该证据创建独立模拟账户
+PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
+/Users/brucehuang/Documents/CLI_research/.venv/bin/python -m gpt_quant.cli paper-init \
+  /absolute/path/to/metrics.json /absolute/path/to/paper-state.json --cash 100000
+
+# 3. 在更新并质检最新行情后，生成确定性的目标信号
+cd /Users/brucehuang/Documents/CLI_research
+.venv/bin/python scripts/generate_paper_signal.py \
+  /absolute/path/to/metrics.json --output /absolute/path/to/paper-signal.json
+
+# 4. 到真实后续交易时段，提供新的执行价格；参考收盘价不会被当作成交价
+PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
+.venv/bin/python -m gpt_quant.cli paper-rebalance \
+  /absolute/path/to/paper-state.json /absolute/path/to/paper-signal.json \
+  --execution-at '2026-08-31T09:31:00-04:00' \
+  --price-as-of '2026-08-31T09:30:00-04:00' \
+  --price AAPL=100.25 --price MSFT=520.10
+
+# 5. 后续按不同交易日估值并查看报告
+PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
+.venv/bin/python -m gpt_quant.cli paper-mark \
+  /absolute/path/to/paper-state.json --date 2026-08-31 \
+  --price AAPL=101.00 --price MSFT=518.00
+PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
+.venv/bin/python -m gpt_quant.cli paper-report /absolute/path/to/paper-state.json
+```
+
+执行前按这个顺序判断：
+
+1. `metrics.json` 是否仍是同一文件和同一哈希，且验证结果为 `PAPER_TRADING`；文件变化会让账户进入 `HALTED`。
+2. `signal_date` 是否早于执行日期，`execution_model` 是否为 `next_open_v1`，信号是否仍在有效期内。
+3. `execution_at` 和 `price_as_of` 是否带 UTC offset、位于市场常规时段，价格是否不超过 15 分钟陈旧。
+4. `signal_id` 是否未处理；重复执行会被拒绝，不能通过改文件名绕过。
+5. 输出中的订单是 `FILLED` 还是 `REJECTED`，拒绝原因是什么；不能只看账户是否有持仓。
+
+模拟期结论不要只写收益。至少记录：不同交易日数、已处理信号数、成交/拒绝订单数、费用、最大回撤、证据状态、与研究目标的偏差，以及任何缺失价格或人工干预。至少 63 个不同模拟交易日和人工复核只是进入下一次评审的必要条件，不是实盘许可。
+
+当前离线日历能拒绝周末和非正常交易时段，但不能完整识别交易所节假日。节假日不要手工伪造价格通过检查；应等待正式交易时段或在后续统一入口中接入版本化交易日历。
