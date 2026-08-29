@@ -9,6 +9,10 @@ NOFEE_CN = MarketConfig(buy_cost=0.0, sell_cost=0.0, limit_pct=0.098)
 NOFEE_US = MarketConfig(buy_cost=0.0, sell_cost=0.0, limit_pct=None)
 
 
+def run_legacy(close, decision, cfg):
+    return engine.run(close, decision, cfg, execution_model="legacy_same_close")
+
+
 def make(prices: dict, dates=None) -> pd.DataFrame:
     df = pd.DataFrame(prices)
     df.index = pd.bdate_range("2024-01-01", periods=len(df)) if dates is None else pd.to_datetime(dates)
@@ -25,7 +29,7 @@ def test_costs_charged_on_buy_and_sell():
     dec = full_weight(close, 0.0)
     dec.iloc[1] = 1.0  # 第2天买入
     dec.iloc[2] = 0.0  # 第3天清仓
-    res = engine.run(close, dec, cfg)
+    res = run_legacy(close, dec, cfg)
     # 买入金额必须预留买入费，随后全卖时扣除卖出费。
     bought = 1.0 / (1.0 + cfg.buy_cost)
     assert res.nav.iloc[-1] == pytest.approx(bought * (1 - cfg.sell_cost))
@@ -37,7 +41,7 @@ def test_execution_lag_no_lookahead():
     close = make({"A": [10.0, 20.0, 30.0]})
     dec = full_weight(close, 0.0)
     dec.iloc[1] = 1.0  # 信号在第2天（当天涨100%不应赚到）
-    res = engine.run(close, dec, NOFEE_US)
+    res = run_legacy(close, dec, NOFEE_US)
     # 只赚第3天的 50%
     assert res.nav.iloc[-1] == pytest.approx(1.5)
 
@@ -47,7 +51,7 @@ def test_limit_up_blocks_buy():
     close = make({"A": [10.0, 11.0, 11.5, 12.0]})
     dec = full_weight(close, 1.0)
     dec.iloc[0] = 0.0  # 第1天无信号
-    res = engine.run(close, dec, NOFEE_CN)
+    res = run_legacy(close, dec, NOFEE_CN)
     assert res.weights.iloc[1, 0] == 0.0   # 涨停日买不进
     assert res.weights.iloc[2, 0] == 1.0   # 次日买入
     # 收益只来自第4天: 12/11.5
@@ -62,7 +66,7 @@ def test_limit_down_blocks_sell():
     dec.iloc[1] = 1.0
     dec.iloc[2] = 0.0  # 跌停日想卖
     dec.iloc[3] = 0.0
-    res = engine.run(close, dec, NOFEE_CN)
+    res = run_legacy(close, dec, NOFEE_CN)
     assert res.weights.iloc[2, 0] > 0.99   # 跌停日卖不出（漂移后仍满仓）
     assert res.weights.iloc[3, 0] == 0.0   # 次日卖出
     assert res.nav.iloc[-1] == pytest.approx(0.9)
@@ -72,7 +76,7 @@ def test_suspension_freezes_position():
     close = make({"A": [10.0, np.nan, np.nan, 12.0], "B": [10.0, 10.0, 10.0, 10.0]})
     dec = pd.DataFrame({"A": [0.5, 0.0, 0.0, 0.0], "B": [0.5, 0.5, 0.5, 0.5]},
                        index=close.index)
-    res = engine.run(close, dec, NOFEE_US)
+    res = run_legacy(close, dec, NOFEE_US)
     # 停牌期间 A 仓位冻结、收益为 0；复牌日按累计涨幅一次性体现
     assert res.weights.iloc[1]["A"] == pytest.approx(0.5)
     assert res.returns.iloc[1] == pytest.approx(0.0)
@@ -84,15 +88,15 @@ def test_weights_sum_validation():
     close = make({"A": [10.0, 11.0], "B": [10.0, 11.0]})
     dec = full_weight(close, 0.6)  # 行和 1.2 > 1
     with pytest.raises(ValueError):
-        engine.run(close, dec, NOFEE_US)
+        run_legacy(close, dec, NOFEE_US)
     with pytest.raises(ValueError):
-        engine.run(close, full_weight(close, -0.1), NOFEE_US)
+        run_legacy(close, full_weight(close, -0.1), NOFEE_US)
 
 
 def test_cash_earns_zero():
     close = make({"A": [10.0, 12.0, 15.0]})
     dec = full_weight(close, 0.5)  # 半仓
-    res = engine.run(close, dec, NOFEE_US)
+    res = run_legacy(close, dec, NOFEE_US)
     # 第2天半仓赚 20% 的一半 = 10%
     assert res.returns.iloc[1] == pytest.approx(0.10)
 
@@ -101,7 +105,7 @@ def test_cash_earns_zero():
 def test_suspended_full_position_cannot_fund_rotation(cfg):
     close = make({"A": [10.0, np.nan, 12.0], "B": [10.0, 10.0, 10.0]})
     dec = pd.DataFrame({"A": [1.0, 0.0, 0.0], "B": [0.0, 1.0, 1.0]}, index=close.index)
-    res = engine.run(close, dec, cfg)
+    res = run_legacy(close, dec, cfg)
 
     assert res.weights.iloc[1].to_dict() == pytest.approx({"A": 1.0, "B": 0.0})
     assert res.costs.iloc[1] == pytest.approx(0.0)
@@ -114,7 +118,7 @@ def test_suspended_full_position_cannot_fund_rotation(cfg):
 def test_limit_down_position_cannot_fund_another_buy():
     close = make({"A": [10.0, 9.0, 9.0], "B": [10.0, 10.0, 10.0]})
     dec = pd.DataFrame({"A": [1.0, 0.0, 0.0], "B": [0.0, 1.0, 1.0]}, index=close.index)
-    res = engine.run(close, dec, engine.CN_MARKET)
+    res = run_legacy(close, dec, engine.CN_MARKET)
 
     assert res.weights.iloc[1].to_dict() == pytest.approx({"A": 1.0, "B": 0.0})
     assert res.turnover.iloc[1] == pytest.approx(0.0)
@@ -129,7 +133,7 @@ def test_partial_freeze_preserves_quantity_and_scales_buys_after_sell_fees():
         {"A": [0.5, 0.0], "B": [0.25, 0.0], "C": [0.0, 0.6], "D": [0.0, 0.4]},
         index=close.index,
     )
-    res = engine.run(close, dec, cfg)
+    res = run_legacy(close, dec, cfg)
     values = res.weights.mul(res.nav, axis=0)
 
     # 初始 A=0.5、B=0.25，扣除买入费后现金=0.2425。
@@ -147,7 +151,7 @@ def test_sale_and_gross_return_use_consistent_equity_for_costs():
     cfg = MarketConfig(buy_cost=0.01, sell_cost=0.02, limit_pct=None)
     close = make({"A": [10.0, 20.0]})
     dec = pd.DataFrame({"A": [0.5, 0.0]}, index=close.index)
-    res = engine.run(close, dec, cfg)
+    res = run_legacy(close, dec, cfg)
 
     # 第一天买 0.5，现金 0.495；第二天持仓价值 1，卖出净收入 0.98。
     assert res.nav.iloc[0] == pytest.approx(0.995)
@@ -159,7 +163,7 @@ def test_sale_and_gross_return_use_consistent_equity_for_costs():
 def test_missing_initial_and_all_symbol_quotes_are_not_backfilled_or_traded():
     close = make({"A": [np.nan, 10.0, np.nan, 12.0], "B": [10.0, 10.0, np.nan, 10.0]})
     dec = pd.DataFrame({"A": [1.0, 1.0, 0.0, 0.0], "B": [0.0, 0.0, 1.0, 1.0]}, index=close.index)
-    res = engine.run(close, dec, NOFEE_US)
+    res = run_legacy(close, dec, NOFEE_US)
 
     assert res.weights.iloc[0].sum() == 0.0
     assert res.weights.iloc[2].to_dict() == pytest.approx({"A": 1.0, "B": 0.0})
@@ -176,7 +180,7 @@ def test_cash_ledger_reconciles_mixed_rebalances_and_frozen_quantities(cfg):
     raw_weights[raw_weights < 0.4] = 0.0
     dec = pd.DataFrame(raw_weights / np.maximum(raw_weights.sum(axis=1, keepdims=True), 1.0),
                        index=close.index, columns=close.columns)
-    result = engine.run(close, dec, cfg)
+    result = run_legacy(close, dec, cfg)
 
     # 独立用成交数量与现金收支对账，不复用引擎的预算/权重计算。
     marks = close.ffill()
@@ -202,17 +206,78 @@ def test_cash_ledger_reconciles_mixed_rebalances_and_frozen_quantities(cfg):
 def test_invalid_prices_cannot_create_cash_or_exposure(invalid_price):
     close = make({"A": [10.0, invalid_price]})
     with pytest.raises(ValueError, match="price|价格"):
-        engine.run(close, full_weight(close), NOFEE_US)
+        run_legacy(close, full_weight(close), NOFEE_US)
 
 
 @pytest.mark.parametrize("invalid_weight", [np.inf, -np.inf])
 def test_nonfinite_decisions_are_rejected(invalid_weight):
     close = make({"A": [10.0, 10.0]})
     with pytest.raises(ValueError):
-        engine.run(close, full_weight(close, invalid_weight), NOFEE_US)
+        run_legacy(close, full_weight(close, invalid_weight), NOFEE_US)
 
 
 @pytest.mark.parametrize("buy_cost,sell_cost", [(-0.1, 0.0), (np.nan, 0.0), (0.0, np.inf), (0.0, 1.0)])
 def test_invalid_fees_are_rejected(buy_cost, sell_cost):
     with pytest.raises(ValueError, match="cost|费率"):
         MarketConfig(buy_cost=buy_cost, sell_cost=sell_cost, limit_pct=None)
+
+
+def test_next_open_does_not_earn_gap_before_buy_and_old_holdings_earn_exit_gap():
+    close = make({"A": [100.0, 132.0, 180.0]})
+    opens = make({"A": [100.0, 120.0, 144.0]})
+    dec = make({"A": [1.0, 0.0, 0.0]})
+    result = engine.run(close, dec, NOFEE_US, open_prices=opens)
+    assert result.nav.tolist() == pytest.approx([1.0, 1.1, 1.2])
+    assert result.execution_model == "next_open_v1"
+    assert result.execution_events[0]["signal_as_of"] == str(close.index[0].date())
+    assert result.execution_events[0]["execution_date"] == str(close.index[1].date())
+
+
+def test_next_open_missing_quote_freezes_without_using_close_to_fill():
+    close = make({"A": [10.0, 12.0, np.nan, 15.0]})
+    opens = make({"A": [10.0, np.nan, 12.0, 15.0]})
+    dec = full_weight(close)
+    result = engine.run(close, dec, engine.US_MARKET, open_prices=opens)
+    assert result.weights.iloc[1, 0] == 0.0
+    assert result.weights.iloc[2, 0] == pytest.approx(1.0)
+    assert result.stale_valuation_days == 1
+    assert result.nav.iloc[-1] == pytest.approx(1.25 / 1.001)
+
+
+def test_next_open_limit_uses_opening_information_only():
+    opens = make({"A": [10.0, 10.1, 12.0]})
+    close = make({"A": [10.0, 11.0, 11.0]})
+    result = engine.run(close, full_weight(close), NOFEE_CN, open_prices=opens)
+    assert result.weights.iloc[1, 0] == pytest.approx(1.0)
+    assert result.nav.iloc[1] == pytest.approx(11.0 / 10.1)
+
+
+def test_next_open_requires_open_prices_and_past_initial_signal():
+    close = make({"A": [10.0, 10.0]})
+    with pytest.raises(ValueError, match="open"):
+        engine.run(close, full_weight(close), NOFEE_US)
+    with pytest.raises(ValueError, match="initial_signal"):
+        engine.run(close, full_weight(close), NOFEE_US, open_prices=close,
+                   initial_signal=close.iloc[0] * 0.0, initial_signal_date=close.index[0])
+
+
+@pytest.mark.parametrize("cfg", [engine.US_MARKET, engine.CN_MARKET])
+def test_next_open_cash_ledger_and_frozen_quantities(cfg):
+    rng = np.random.default_rng(18)
+    values = 10 * np.cumprod(1 + rng.uniform(-.12, .12, (50, 3)), axis=0)
+    close = make(dict(zip(["A", "B", "C"], values.T)))
+    opens = close * rng.uniform(.97, 1.03, values.shape)
+    opens = opens.mask(rng.random(values.shape) < .15)
+    raw = rng.random(values.shape)
+    decision = pd.DataFrame(raw / np.maximum(raw.sum(axis=1, keepdims=True), 1), index=close.index, columns=close.columns)
+    result = engine.run(close, decision, cfg, open_prices=opens)
+    quantities = result.weights.mul(result.nav, axis=0) / close
+    changes = quantities - quantities.shift(1, fill_value=0.0)
+    trades = (changes * opens).fillna(0.0)
+    buys, sells = trades.clip(lower=0).sum(axis=1), -trades.clip(upper=0).sum(axis=1)
+    fees = buys * cfg.buy_cost + sells * cfg.sell_cost
+    cash = 1 + (sells - buys - fees).cumsum()
+    assert cash.min() >= -1e-12
+    np.testing.assert_allclose(result.nav, cash + (quantities * close).sum(axis=1), atol=1e-12)
+    np.testing.assert_allclose(result.costs * result.nav.shift(1, fill_value=1), fees, atol=1e-12)
+    assert np.abs(changes.to_numpy()[opens.isna().to_numpy()]).max() < 1e-12
