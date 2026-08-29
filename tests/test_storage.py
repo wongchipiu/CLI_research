@@ -55,3 +55,24 @@ def test_last_date():
     assert storage.last_date("cn", "999999") is None
     storage.save_daily("cn", "600036", make_df(["2024-01-02", "2024-01-05"]))
     assert storage.last_date("cn", "600036") == pd.Timestamp("2024-01-05")
+
+
+def test_eastmoney_lot_volume_is_normalized_to_shares():
+    frame = make_df(["2024-01-02"])
+    frame["volume"] = 10
+    frame["amount"] = 10 * 100 * frame["close"]
+    frame["volume_unit"] = "lot"
+    storage.save_daily("cn", "600519", frame)
+
+    loaded = storage.load_daily("cn", "600519")
+    assert loaded.loc[0, "volume"] == 1000
+    assert loaded.loc[0, "volume_unit"] == "share"
+    assert loaded.loc[0, "volume_scale_applied"] == 100
+
+
+def test_legacy_amount_ratio_infers_lot_volume():
+    frame = make_df(["2024-01-02"])
+    frame["volume"] = 12
+    frame["amount"] = 12 * 100 * frame["close"]
+    normalized = storage.normalize_volume(frame, market="cn")
+    assert normalized.loc[0, "volume"] == 1200

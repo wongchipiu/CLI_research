@@ -9,7 +9,10 @@ def idx(n):
 
 
 def test_registry():
-    assert {"sma_cross", "momentum", "boll_revert"} <= set(list_strategies())
+    assert {
+        "sma_cross", "momentum", "boll_revert", "momentum_vol",
+        "trend_momentum", "relative_strength",
+    } <= set(list_strategies())
 
 
 def test_sma_cross_uptrend_long():
@@ -52,3 +55,15 @@ def test_weights_valid_range():
         w = get_strategy(name)(close)
         assert (w.to_numpy() >= 0).all(), name
         assert (w.sum(axis=1) <= 1.0 + 1e-9).all(), name
+
+
+def test_registered_strategies_do_not_change_past_signals_when_future_is_removed():
+    rng = np.random.default_rng(23)
+    close = pd.DataFrame(100 * np.cumprod(1 + rng.normal(0, .02, (320, 3)), axis=0),
+                         index=idx(320), columns=list("ABC"))
+    close.loc[close.index[:25], "C"] = np.nan
+    for name in list_strategies():
+        strategy = get_strategy(name)
+        full = strategy(close)
+        prefix = strategy(close.iloc[:260])
+        pd.testing.assert_frame_equal(full.iloc[:260], prefix, obj=name)

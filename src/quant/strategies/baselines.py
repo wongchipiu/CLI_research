@@ -56,3 +56,66 @@ def boll_revert(close: pd.DataFrame, window: int = 20, num_std: float = 2.0) -> 
     state[exit_] = 0.0
     state = state.ffill().fillna(0.0)
     return state / close.shape[1]
+
+
+@register("momentum_vol")
+def momentum_vol(
+    close: pd.DataFrame,
+    lookback: int = 120,
+    vol_window: int = 20,
+    top_n: int = 3,
+    rebalance: int = 20,
+) -> pd.DataFrame:
+    """Positive momentum selection with inverse-volatility position sizing."""
+    momentum_score = close / close.shift(lookback) - 1.0
+    volatility = close.pct_change(fill_method=None).rolling(
+        vol_window, min_periods=vol_window
+    ).std() * np.sqrt(252)
+    weights = pd.DataFrame(np.nan, index=close.index, columns=close.columns)
+    for index in range(max(lookback, vol_window), len(close), rebalance):
+        scores = momentum_score.iloc[index].dropna()
+        picks = scores[scores > 0].nlargest(top_n).index
+        if len(picks):
+            inverse_vol = 1.0 / volatility.loc[close.index[index], picks].replace(0.0, np.nan)
+            inverse_vol = inverse_vol.dropna()
+            if len(inverse_vol):
+                weights.loc[close.index[index], inverse_vol.index] = inverse_vol / inverse_vol.sum()
+        weights.loc[close.index[index]] = weights.loc[close.index[index]].fillna(0.0)
+    return weights.ffill().fillna(0.0)
+
+
+@register("trend_momentum")
+def trend_momentum(
+    close: pd.DataFrame,
+    lookback: int = 120,
+    trend_window: int = 200,
+    top_n: int = 3,
+    rebalance: int = 20,
+) -> pd.DataFrame:
+    """Momentum rotation that moves to cash when the equal-weight market trend is weak."""
+    weights = momentum(close, lookback=lookback, top_n=top_n, rebalance=rebalance)
+    first_valid = close.apply(lambda series: series.dropna().iloc[0] if series.notna().any() else np.nan)
+    market_proxy = close.div(first_valid).mean(axis=1, skipna=True)
+    trend = market_proxy.rolling(trend_window, min_periods=trend_window).mean()
+    risk_on = (market_proxy >= trend).astype(float)
+    return weights.mul(risk_on, axis=0)
+
+
+@register("relative_strength")
+def relative_strength(
+    close: pd.DataFrame,
+    lookback: int = 120,
+    top_n: int = 3,
+    rebalance: int = 20,
+) -> pd.DataFrame:
+    """Hold positive assets whose momentum also exceeds the cross-sectional median."""
+    score = close / close.shift(lookback) - 1.0
+    weights = pd.DataFrame(np.nan, index=close.index, columns=close.columns)
+    for index in range(lookback, len(close), rebalance):
+        row = score.iloc[index].dropna()
+        eligible = row[(row > 0) & (row > row.median())]
+        picks = eligible.nlargest(top_n).index
+        weights.loc[close.index[index]] = 0.0
+        if len(picks):
+            weights.loc[close.index[index], picks] = 1.0 / len(picks)
+    return weights.ffill().fillna(0.0)

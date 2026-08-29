@@ -1,71 +1,52 @@
-"""数据质量检查：输出文本摘要（agent 只读这个摘要，不读 parquet）。
-
-用法:
-    uv run python scripts/check_data.py
-摘要同时写入 data/quality_summary.txt
-"""
+"""Write human-readable and JSON daily-bar quality summaries."""
 
 from __future__ import annotations
 
+import argparse
+import json
 import sys
+from pathlib import Path
 
-import pandas as pd
-
-sys.stdout.reconfigure(encoding="utf-8")  # Windows GBK 控制台中文输出
+sys.stdout.reconfigure(encoding="utf-8")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from quant.data import storage
-
-
-def check_symbol(market: str, symbol: str) -> list[str]:
-    df = storage.load_daily(market, symbol)
-    issues = []
-    if df is None or df.empty:
-        return [f"{market}/{symbol}: 无数据"]
-    dates = pd.to_datetime(df["date"])
-    line = (
-        f"{market}/{symbol}: {len(df)} 行, "
-        f"{dates.min().date()} ~ {dates.max().date()}"
-    )
-    if dates.duplicated().any():
-        issues.append("存在重复日期")
-    if not dates.is_monotonic_increasing:
-        issues.append("日期未升序")
-    nan_cols = df[storage.REQUIRED_COLS].isna().sum()
-    nan_cols = nan_cols[nan_cols > 0]
-    if not nan_cols.empty:
-        issues.append(f"NaN: {dict(nan_cols)}")
-    price_cols = df[["open", "high", "low", "close"]]
-    if (price_cols <= 0).any().any():
-        issues.append("存在非正价格")
-    if (df["high"] < df["low"]).any():
-        issues.append("high < low")
-    gaps = dates.diff().dt.days
-    big_gap = gaps[gaps > 15]
-    if not big_gap.empty:
-        issues.append(f"{len(big_gap)} 处 >15 自然日缺口(停牌/休市)")
-    # 与最新交易日的距离（数据新鲜度）
-    staleness = (pd.Timestamp.today() - dates.max()).days
-    if staleness > 7:
-        issues.append(f"数据已 {staleness} 天未更新")
-    return [line + ("  [" + "; ".join(issues) + "]" if issues else "  [OK]")]
+from quant.data.quality import analyze_daily
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--quiet", action="store_true", help="只打印汇总，完整明细仍写入文件")
+    args = parser.parse_args()
     daily_dir = storage.DATA_DIR / "daily"
     if not daily_dir.exists():
         print("无数据，请先运行 scripts/update_data.py")
         raise SystemExit(1)
 
-    lines = []
+    reports = []
     for market_dir in sorted(daily_dir.iterdir()):
-        for f in sorted(market_dir.glob("*.parquet")):
-            lines += check_symbol(market_dir.name, f.stem)
+        for path in sorted(market_dir.glob("*.parquet")):
+            reports.append(analyze_daily(market_dir.name, path.stem, storage.load_daily(market_dir.name, path.stem)))
 
-    report = "\n".join(lines)
-    print(report)
-    out = storage.DATA_DIR / "quality_summary.txt"
-    out.write_text(report, encoding="utf-8")
-    print(f"\n摘要已写入 {out}")
+    text = "\n".join(report.to_text() for report in reports)
+    if not args.quiet:
+        print(text)
+    text_path = storage.DATA_DIR / "quality_summary.txt"
+    json_path = storage.DATA_DIR / "quality_summary.json"
+    text_path.write_text(text, encoding="utf-8")
+    payload = {
+        "summary": {
+            "symbols": len(reports),
+            "ok": sum(report.status == "OK" for report in reports),
+            "warnings": sum(report.status == "WARN" for report in reports),
+            "errors": sum(report.status == "ERROR" for report in reports),
+        },
+        "reports": [report.to_dict() for report in reports],
+    }
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({**payload["summary"], "text": str(text_path), "json": str(json_path)}, ensure_ascii=False))
+    if payload["summary"]["errors"]:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
