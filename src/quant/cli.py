@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 from pathlib import Path
 import sys
 from typing import Sequence
+from zoneinfo import ZoneInfo
 
 from quant.adapters import IntegrationError
 from quant.contracts import ContractError, load_json_object
 from quant.data.universe import load_universe
+from quant.jobs import DailyJobRequest, run_daily_job
 from quant.scanner import (
     RadarConfigError,
     RadarError,
@@ -72,6 +75,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="daily_radar_scan JSON; repeatable, defaults to discovered profile scans",
     )
     track.add_argument("--output", type=Path, help="tracking JSON output path")
+    daily = subparsers.add_parser("daily", help="retryable update -> quality -> scan -> track -> report")
+    daily.add_argument("--workspace", type=Path, default=DEFAULT_CONFIG)
+    daily.add_argument("--market", required=True, choices=("us",))
+    daily.add_argument("--profile")
+    daily.add_argument(
+        "--job-date",
+        default=datetime.now(ZoneInfo("America/New_York")).date().isoformat(),
+        help="idempotency/report date in YYYY-MM-DD; defaults to current New York date",
+    )
+    daily.add_argument("--as-of", help="optional radar signal date and update end date")
+    daily.add_argument(
+        "--skip-update",
+        action="store_true",
+        help="explicit offline/replay mode; uses existing local data",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -105,6 +123,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False))
             return 2 if output["decision"] == "BLOCKED" else 0
+
+        if args.command == "daily":
+            output = run_daily_job(
+                DailyJobRequest(
+                    profile=args.profile,
+                    job_date=args.job_date,
+                    as_of=args.as_of,
+                    skip_update=args.skip_update,
+                ),
+                config,
+            )
+            print(json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False))
+            return 0 if output["status"] == "COMPLETED" else 2
 
         config.apply()
         profile = load_radar_profile(config.radar_path, args.profile)

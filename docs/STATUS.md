@@ -111,3 +111,12 @@
 - 未成熟结果保持 `PENDING`；到期但缺开盘/收盘为 `MISSING` 并列出原因；只有配置提供明确最终交易日才标 `DELISTED`。三者均不前填、不补零，追加未来数据不会改写已经成熟的短期限目标日。
 - 合成数据覆盖幂等、未来数据隔离、费用、基准、缺失和显式退市路径；CLI 集成覆盖扫描后跟踪落盘。`CLI_research` 完整回归为 **112 passed**。
 - 详细规则见 [M7-S6 验收记录](milestones/m7-s6-forward-outcome-tracking.md)。下一项为 M7-S7 可重试每日批处理与报告。
+
+## 2026-08-30：M7-S7 每日 Radar 批处理与报告已完成
+
+- 新增 `daily_radar_job` v1、`daily_radar_report` v1 和 `quant daily`，固定执行更新→质检→扫描→跟踪→JSON/Markdown 报告。
+- 同一 profile/job_date 使用稳定 job ID；同日重跑增加 attempt。更新、扫描、信号合并和报告均幂等，阶段失败会原子保存错误与 `failed_stage`，下一次可安全重做。
+- 报告只统计 MATURED，展示描述性/可执行收益的样本数、中位数、胜率、基准超额、最差收益，以及待成熟/缺失/退市数量和比例。
+- 合成与临时工作区测试覆盖阶段顺序、跳过更新、失败恢复、警告、同日两次 CLI 运行和信号不重复；完整回归为 **116 passed**。
+- 本地存量数据以 `--skip-update --as-of 2026-07-20` 离线运行两次：两次 job ID 一致，attempt 从 1 增至 2，五个阶段均完成且仍为 0 个信号；质量摘要 50 个 WARN、0 ERROR，Radar 45/49 个标的完成特征计算并因 4 个复权字段不一致标记降级。未联网更新行情。
+- 详细边界见 [M7-S7 验收记录](milestones/m7-s7-daily-radar-job.md)。S0–S7 确定性研究闭环完成；S8/S9 为需单独确认的可选扩展。

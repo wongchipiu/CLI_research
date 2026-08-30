@@ -39,6 +39,7 @@
 | [M7-S4](milestones/m7-s4-unified-cli-and-contracts.md) | 统一 CLI、工作目录和版本化契约 |
 | [M7-S5](milestones/m7-s5-us-daily-radar.md) | 固定美股自选池的量比、动量、收盘突破、过滤和排名 |
 | [M7-S6](milestones/m7-s6-forward-outcome-tracking.md) | Radar 信号去重、交易日成熟、多期限收益和 SPY 基准比较 |
+| [M7-S7](milestones/m7-s7-daily-radar-job.md) | 可重试每日跑批、阶段状态、幂等重跑和 JSON/Markdown 报告 |
 
 ### `research/`：人工研究笔记
 

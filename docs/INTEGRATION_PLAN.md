@@ -2,7 +2,7 @@
 
 日期：2026-08-28。首次条目：M7-S0（代码盘点与整合设计）；后续 M7-S1 实施结果见 [M7-S1 验收记录](milestones/m7-s1-capital-and-tradability.md)。
 
-本文基于本机源码和离线验证，不是根据项目名称推测的目录方案。S0–S6 已完成，S7–S9 尚未实施。已完成轮次均未迁移仓库、更新行情、连接券商或创建定时任务；各轮实际变更与验收边界以对应里程碑记录为准。
+本文基于本机源码和离线验证，不是根据项目名称推测的目录方案。S0–S7 已完成，S8–S9 为可选且尚未实施。已完成轮次均未迁移仓库、连接模型或券商、创建系统定时任务；各轮实际变更与验收边界以对应里程碑记录为准。
 
 ## 1. 结论
 
@@ -128,13 +128,13 @@ CLI_research/
 | **M7-S4：已完成** | CLI workspace/cli/services/contracts/adapter；两项目依赖声明与 CLI 适配测试 | 一个命令完成本地数据摘要→回测→验证；从不同 cwd 运行结果目录一致；坏证据明确拒绝；旧入口仍可用；详见 [验收记录](milestones/m7-s4-unified-cli-and-contracts.md) |
 | **M7-S5：已完成** | CLI `features/radar.py`、`scanner/`、Radar 配置、`quant scan` 和测试 | 固定自选池已跑通量比/动量/收盘突破、过滤与排名；相同快照结果确定；无数据明确失败/降级；详见 [验收记录](milestones/m7-s5-us-daily-radar.md) |
 | **M7-S6：已完成** | CLI `scanner/tracking.py`、跟踪契约、`quant signals track` 和测试 | 1/3/5/10/20 个交易日期限按 SPY 交易日成熟；无未来信息泄漏；缺失与未成熟结果单列；支持描述性/可执行收益及基准比较；详见 [验收记录](milestones/m7-s6-forward-outcome-tracking.md) |
-| **M7-S7：每日批处理与报告** | CLI 新 jobs、摘要报告；复用现有研究报告模块 | 更新→质检→扫描→跟踪→报告可重试；同日重跑不重复信号，失败有状态；先手动运行，调度另行配置 |
+| **M7-S7：已完成** | CLI `jobs/daily.py`、任务/报告契约、`quant daily` 和测试 | 更新→质检→扫描→跟踪→报告可重试；同日重跑不重复信号；失败有阶段状态；生成 JSON/Markdown；仅手动入口，调度另行配置；详见 [验收记录](milestones/m7-s7-daily-radar-job.md) |
 | **M7-S8：可选 Agent 接入** | GPT 新真实模型适配器、摘要工具；沿用 runtime/audit | 无 Key 时确定性流程仍可跑；只读研究权限、费用限制、工具结果引用、外部文本提示注入防护有测试 |
 | **M7-S9：可选物理合仓/界面** | 包装与安装、文档、兼容命令；UI 另列任务 | 已确认版本保存；干净环境安装与统一回归通过；原数据、原仓库不被覆盖；界面只消费已验证结果 |
 
 依赖：S1→S2；S3 可独立处理；S4 建立在前述边界和契约明确后；S5→S6→S7。S8/S9 不阻塞扫描研究 MVP。
 
-下一轮为 **M7-S7**，只处理可重试、幂等的每日更新→质检→扫描→跟踪→报告批处理；不要同时接真实模型或连实盘券商。
+S0–S7 的确定性研究与跟踪闭环已完成。S8/S9 是可选扩展：开始前分别确认真实模型服务与只读权限边界，或物理合仓/界面的明确目标；不要由 `quant daily` 自动触发这些能力。
 
 ## 7. Radar 首版规则与评价
 
@@ -152,7 +152,7 @@ CLI_research/
 
 ## 8. 拟定的统一使用方式
 
-以下是目标接口。`quant workflow`、`quant scan` 与 `quant signals track` 已可用；其余仍是规划，不可当作已实现命令：
+以下接口中，`quant workflow`、`quant scan`、`quant signals track` 与 `quant daily` 已可用；其余仍是规划，不可当作已实现命令：
 
 ```bash
 quant doctor

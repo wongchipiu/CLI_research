@@ -36,7 +36,8 @@ cd /Users/brucehuang/Documents/gpt_quant
 - 滚动验证：每折在本折训练段重新选参，不将独立账户曲线拼成连续收益。
 - 实验记录：固定数据/源码指纹、时间边界和网格，记录最终测试使用状态。
 - 固定美股自选池日线 Radar：量比、1/5/20 日动量、20/60 日收盘突破、过滤与确定性排名。
-- Radar 信号跟踪：按 SPY 本地交易日成熟 1/3/5/10/20 日结果，分别保存描述性收益与次日开盘、扣费后的可执行收益；每日批处理仍未实现。
+- Radar 信号跟踪：按 SPY 本地交易日成熟 1/3/5/10/20 日结果，分别保存描述性收益与次日开盘、扣费后的可执行收益。
+- 可重试每日批处理：一条命令执行更新→质检→扫描→跟踪→JSON/Markdown 报告，同日重跑复用 job ID 且不重复信号；系统调度仍需用户另行配置。
 - 本地模拟账本：次日开盘信号、执行价格时效、证据哈希、重放保护和重启恢复；不连接券商。
 
 ## 常用命令
@@ -52,6 +53,10 @@ cd /Users/brucehuang/Documents/gpt_quant
 
 # 读取已保存的 scan.json，去重登记信号并更新多期限结果
 .venv/bin/quant signals track --workspace config/workspace.yaml --market us \
+  --profile momentum_volume
+
+# 完整每日批处理；离线验收可显式追加 --skip-update
+.venv/bin/quant daily --workspace config/workspace.yaml --market us \
   --profile momentum_volume
 
 # 探索回测：仅用于研究，不能直接准入；请限定在预先确定的训练区间
@@ -83,6 +88,6 @@ cd /Users/brucehuang/Documents/gpt_quant
 
 完整结果由脚本保存；Agent 只读摘要，不直接读原始行情、大日志或交易明细 CSV。`final_test_status=completed` 只表示测试已执行，不表示盈利、准入或实盘授权。
 
-Radar 只对配置内的固定自选池做描述性排名，不是全市场扫描、上涨概率或交易建议。退出码 2 和 `status=DEGRADED` 表示至少一个标的因缺数据、日期、量纲、复权一致性或历史长度不足而无法计算；普通阈值未通过不是数据故障。扫描规则见 [M7-S5 说明](docs/milestones/m7-s5-us-daily-radar.md)，后续表现口径见 [M7-S6 说明](docs/milestones/m7-s6-forward-outcome-tracking.md)。
+Radar 只对配置内的固定自选池做描述性排名，不是全市场扫描、上涨概率或交易建议。退出码 2 和 `status=DEGRADED` 表示至少一个标的因缺数据、日期、量纲、复权一致性或历史长度不足而无法计算；普通阈值未通过不是数据故障。扫描规则见 [M7-S5 说明](docs/milestones/m7-s5-us-daily-radar.md)，后续表现口径见 [M7-S6 说明](docs/milestones/m7-s6-forward-outcome-tracking.md)，批处理状态与报告见 [M7-S7 说明](docs/milestones/m7-s7-daily-radar-job.md)。
 
 开发入口统一见 [文档导航](docs/README.md)。路线图看 [PLAN](docs/PLAN.md)，当前状态看 [STATUS](docs/STATUS.md)，每个开发对话只完成一个 S 条目。

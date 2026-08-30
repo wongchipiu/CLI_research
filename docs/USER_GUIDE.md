@@ -13,7 +13,8 @@
 | 参数是不是挑出来的巧合 | 训练选参、验证段、独立最终测试、逐折滚动验证 | 多次试验后挑最好结果仍然可能过拟合 |
 | 证据能否进入下一步研究 | GPT 项目的独立验证器，逐项给出失败原因 | `PAPER_TRADING` 不是买入信号，`LIVE_READY` 也不是实盘授权 |
 | 在固定美股自选池中发现当日异动 | 手动运行 `quant scan`，计算量比、动量和收盘突破并确定性排名 | 不是全美股覆盖、上涨概率、未来表现验证或自动交易 |
-| 跟踪异动后的表现 | 手动运行 `quant signals track`，按交易日更新 1/3/5/10/20 日描述性、可执行和基准超额收益 | 少量历史观察不能证明信号未来有效；自动每日批处理仍未完成 |
+| 跟踪异动后的表现 | `quant signals track` 按交易日更新 1/3/5/10/20 日描述性、可执行和基准超额收益 | 少量历史观察不能证明信号未来有效 |
+| 完成每日研究跑批 | `quant daily` 依次更新、质检、扫描、跟踪并生成报告，阶段状态可重试 | 还没有自动安装系统调度，也不会自动下单 |
 
 本轮新结果会标记 `schema_version=2`、`execution_model=next_open_v1`。旧的同日收盘回测仍可显式运行，但不能直接拿来通过新验证器。旧模式仅保留成交时点的比较，不恢复历史版本中已经修复的资金错误。
 
@@ -114,6 +115,19 @@ cd /Users/brucehuang/Documents/CLI_research
 - `executable`：下一交易日开盘到目标日收盘，按配置扣买卖双边费用，并与相同成交时点、相同费用口径的 SPY 比较。
 
 `PENDING` 表示真实交易日还没有走够；`MISSING` 表示期限已经到达但标的或基准缺少所需开盘/收盘，命令退出码为 2。只有 `config/radar.yaml` 的 `tracking.delistings` 明确记录最终交易日时，目标日在其后才标记为 `DELISTED`；系统不会把普通缺 K 线猜成退市。缺失或退市收益都不会填 0。追加新的行情只会使新期限成熟；已经成熟的短期限结果仍由原目标交易日决定。
+
+### 一条命令完成每日 Radar 跑批
+
+```bash
+.venv/bin/quant daily --workspace config/workspace.yaml \
+  --market us --profile momentum_volume
+```
+
+它按顺序执行：增量更新美股日线 → 数据质检 → 当日 Radar → 历史信号跟踪 → JSON/Markdown 报告。任务状态写入 `results/radar/us/<profile>/jobs/<纽约日期>.json`，报告写入同一 profile 的 `reports/`。每个阶段都有 `PENDING/RUNNING/SKIPPED/COMPLETED/FAILED` 状态和简短错误；某阶段失败后，同一日期重跑会增加 `attempt` 并安全重做全部幂等阶段。
+
+同一日期和 profile 使用同一个 `job_id`。行情增量合并会按日期去重，扫描覆盖同一交易日文件，跟踪按 `signal_id` 去重，报告覆盖同名日期，因此重跑不会制造重复信号。若只想用现有本地数据验收，必须显式传 `--skip-update`；这会在状态中留下 `SKIPPED`，不会伪装成已经更新。
+
+退出码 0 表示所有阶段完成且没有警告；退出码 2 表示任务失败或完成但含数据降级、质量警告或成熟结果缺失。查看 JSON 的 `status`、`failed_stage` 和 `stages`，不要只看是否生成了 Markdown。该命令没有安装 launchd/cron，也不连接券商。
 
 ## 5. 预览实验边界，然后冻结实验
 

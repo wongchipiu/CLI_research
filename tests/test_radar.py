@@ -131,6 +131,9 @@ def test_scan_cli_writes_a_versioned_artifact(tmp_path: Path, capsys):
     data_dir = tmp_path / "data" / "daily" / "us"
     config_dir.mkdir()
     data_dir.mkdir(parents=True)
+    (tmp_path / "scripts").symlink_to(
+        Path(__file__).resolve().parents[1] / "scripts", target_is_directory=True
+    )
     frame = make_frame()
     frame.to_parquet(data_dir / "AAA.parquet", index=False)
     frame.to_parquet(data_dir / "SPY.parquet", index=False)
@@ -209,3 +212,33 @@ def test_scan_cli_writes_a_versioned_artifact(tmp_path: Path, capsys):
     assert tracking_path.is_file()
     assert tracking_output["artifact_type"] == "daily_radar_tracking"
     assert tracking_output["summary"]["pending"] == 5
+
+    signal_date = output["signal_date"]
+    daily_args = [
+        "daily",
+        "--workspace",
+        str(workspace),
+        "--market",
+        "us",
+        "--profile",
+        "test",
+        "--job-date",
+        "2026-08-30",
+        "--as-of",
+        signal_date,
+        "--skip-update",
+    ]
+    assert main(daily_args) == 2
+    daily_output = json.loads(capsys.readouterr().out)
+    assert daily_output["status"] == "COMPLETED_WITH_WARNINGS"
+    assert daily_output["stages"]["update"]["status"] == "SKIPPED"
+    assert daily_output["stages"]["report"]["status"] == "COMPLETED"
+    report_root = tmp_path / "results" / "radar" / "us" / "test" / "reports"
+    assert (report_root / "2026-08-30.json").is_file()
+    assert (report_root / "2026-08-30.md").is_file()
+
+    assert main(daily_args) == 2
+    repeated = json.loads(capsys.readouterr().out)
+    assert repeated["job_id"] == daily_output["job_id"]
+    assert repeated["attempt"] == 2
+    assert json.loads(tracking_path.read_text(encoding="utf-8"))["summary"]["signals"] == 1

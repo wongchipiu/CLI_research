@@ -171,6 +171,69 @@ def validate_daily_radar_tracking(payload: dict) -> dict:
     return payload
 
 
+def validate_daily_radar_job(payload: dict) -> dict:
+    _require_envelope(payload, "daily_radar_job", 1)
+    if payload.get("market") != "us":
+        raise ContractError("daily_radar_job market must be us")
+    for key in ("job_id", "profile", "job_date", "started_at", "state_path"):
+        if not isinstance(payload.get(key), str) or not payload[key]:
+            raise ContractError(f"daily_radar_job {key} must be a non-empty string")
+    if type(payload.get("attempt")) is not int or payload["attempt"] <= 0:
+        raise ContractError("daily_radar_job attempt must be a positive integer")
+    if payload.get("status") not in {"RUNNING", "FAILED", "COMPLETED", "COMPLETED_WITH_WARNINGS"}:
+        raise ContractError("daily_radar_job status is invalid")
+    stages = payload.get("stages")
+    expected = {"update", "quality", "scan", "track", "report"}
+    if not isinstance(stages, dict) or set(stages) != expected:
+        raise ContractError("daily_radar_job stages are incomplete")
+    for name, stage in stages.items():
+        if not isinstance(stage, dict) or stage.get("status") not in {
+            "PENDING", "RUNNING", "SKIPPED", "COMPLETED", "FAILED"
+        }:
+            raise ContractError(f"daily_radar_job stage {name} status is invalid")
+        if not isinstance(stage.get("artifacts"), list) or not isinstance(stage.get("warnings"), list):
+            raise ContractError(f"daily_radar_job stage {name} lists are invalid")
+    if payload["status"] == "FAILED":
+        failed_stage = payload.get("failed_stage")
+        if failed_stage not in expected or stages[failed_stage]["status"] != "FAILED":
+            raise ContractError("daily_radar_job failed_stage is inconsistent")
+    return payload
+
+
+def validate_daily_radar_report(payload: dict) -> dict:
+    _require_envelope(payload, "daily_radar_report", 1)
+    if payload.get("market") != "us":
+        raise ContractError("daily_radar_report market must be us")
+    for key in (
+        "profile", "job_date", "signal_date", "latest_market_date",
+        "scan_snapshot_sha256", "tracking_snapshot_sha256",
+    ):
+        if not isinstance(payload.get(key), str) or not payload[key]:
+            raise ContractError(f"daily_radar_report {key} must be a non-empty string")
+    summary = payload.get("summary")
+    if not isinstance(summary, dict):
+        raise ContractError("daily_radar_report summary must be an object")
+    for key in (
+        "candidates", "signals_tracked", "matured_outcomes", "pending_outcomes",
+        "missing_outcomes", "delisted_outcomes",
+    ):
+        if type(summary.get(key)) is not int or summary[key] < 0:
+            raise ContractError(f"daily_radar_report summary.{key} must be nonnegative integer")
+    candidates = payload.get("candidates")
+    horizons = payload.get("horizons")
+    if not isinstance(candidates, list) or not isinstance(horizons, dict):
+        raise ContractError("daily_radar_report candidates and horizons are invalid")
+    for horizon, item in horizons.items():
+        if not horizon.isdigit() or not isinstance(item, dict):
+            raise ContractError("daily_radar_report horizon is invalid")
+        if type(item.get("sample_count")) is not int or item["sample_count"] < 0:
+            raise ContractError("daily_radar_report sample_count is invalid")
+        for key in ("matured", "pending", "missing", "delisted"):
+            if type(item.get(key)) is not int or item[key] < 0:
+                raise ContractError(f"daily_radar_report horizon {key} is invalid")
+    return payload
+
+
 def _require_envelope(payload: dict, artifact_type: str, schema_version: int) -> None:
     if not isinstance(payload, dict):
         raise ContractError(f"{artifact_type} root must be an object")

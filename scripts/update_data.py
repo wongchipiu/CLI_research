@@ -19,7 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import pandas as pd
 
 from quant.data import fetchers, storage
-from quant.data.universe import list_universe_profiles, load_universe
+from quant.data.universe import load_universe
+from quant.workspace import WorkspaceConfig
 
 DEFAULT_START = "2018-01-01"
 
@@ -42,9 +43,13 @@ def main() -> None:
     ap.add_argument("--market", choices=["all", "cn", "us"], default="all")
     ap.add_argument("--start", default=DEFAULT_START)
     ap.add_argument("--end", default=pd.Timestamp.today().strftime("%Y-%m-%d"))
-    ap.add_argument("--universe", choices=list_universe_profiles(), default=None)
+    ap.add_argument("--universe", help="股票池 profile；由 workspace 指向的 universe.yaml 校验")
     ap.add_argument("--symbol", action="append", default=[], help="只更新股票池内指定代码，可多次")
+    ap.add_argument("--workspace", type=Path, help="versioned workspace YAML; paths are cwd-independent")
     args = ap.parse_args()
+
+    if args.workspace:
+        WorkspaceConfig.load(args.workspace).apply()
 
     uni = load_universe(args.universe)
     jobs: list[tuple[str, str, object]] = []
