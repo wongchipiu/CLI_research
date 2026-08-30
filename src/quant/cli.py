@@ -5,10 +5,23 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import Sequence
 
 from quant.adapters import IntegrationError
-from quant.contracts import ContractError
+from quant.contracts import ContractError, load_json_object
+from quant.data.universe import load_universe
+from quant.scanner import (
+    RadarConfigError,
+    RadarError,
+    TrackingError,
+    load_radar_profile,
+    load_tracking_config,
+    scan_us_daily,
+    track_daily_radar,
+    write_scan_artifact,
+    write_tracking_artifact,
+)
 from quant.services.workflow import WorkflowError, WorkflowRequest, run_workflow
 from quant.workspace import DEFAULT_CONFIG, WorkspaceConfig, WorkspaceConfigError
 
@@ -39,40 +52,114 @@ def main(argv: Sequence[str] | None = None) -> int:
     workflow.add_argument("--regime-window", type=int)
     workflow.add_argument("--risk-off-exposure", type=float, default=0.0)
     workflow.add_argument("-p", "--param", action="append", default=[])
+    scan = subparsers.add_parser("scan", help="deterministic US daily watchlist radar")
+    scan.add_argument("--workspace", type=Path, default=DEFAULT_CONFIG)
+    scan.add_argument("--market", required=True, choices=("us",))
+    scan.add_argument("--profile")
+    scan.add_argument("--as-of", help="signal date; defaults to the latest loaded watchlist bar")
+    scan.add_argument("--output", type=Path, help="JSON output path; defaults under results/radar/")
+    signals = subparsers.add_parser("signals", help="persist and evaluate radar signals")
+    signal_commands = signals.add_subparsers(dest="signals_command", required=True)
+    track = signal_commands.add_parser("track", help="mature 1/3/5/10/20-session outcomes")
+    track.add_argument("--workspace", type=Path, default=DEFAULT_CONFIG)
+    track.add_argument("--market", required=True, choices=("us",))
+    track.add_argument("--profile")
+    track.add_argument(
+        "--scan",
+        type=Path,
+        action="append",
+        default=[],
+        help="daily_radar_scan JSON; repeatable, defaults to discovered profile scans",
+    )
+    track.add_argument("--output", type=Path, help="tracking JSON output path")
     args = parser.parse_args(argv)
 
     try:
         config = WorkspaceConfig.load(args.workspace)
-        output = run_workflow(
-            WorkflowRequest(
-                strategy=args.strategy,
-                market=args.market,
-                params=tuple(args.param),
-                study_file=args.study_file,
-                universe=args.universe,
-                membership_file=args.membership_file,
-                start=args.start,
-                end=args.end,
-                train_ratio=args.train_ratio,
-                validation_ratio=args.validation_ratio,
-                train_end=args.train_end,
-                final_start=args.final_start,
-                walk_forward=args.walk_forward,
-                wf_train_days=args.wf_train_days,
-                wf_test_days=args.wf_test_days,
-                max_position_weight=args.max_position_weight,
-                max_gross_exposure=args.max_gross_exposure,
-                target_volatility=args.target_volatility,
-                volatility_window=args.volatility_window,
-                regime_window=args.regime_window,
-                risk_off_exposure=args.risk_off_exposure,
-            ),
-            config,
+        if args.command == "workflow":
+            output = run_workflow(
+                WorkflowRequest(
+                    strategy=args.strategy,
+                    market=args.market,
+                    params=tuple(args.param),
+                    study_file=args.study_file,
+                    universe=args.universe,
+                    membership_file=args.membership_file,
+                    start=args.start,
+                    end=args.end,
+                    train_ratio=args.train_ratio,
+                    validation_ratio=args.validation_ratio,
+                    train_end=args.train_end,
+                    final_start=args.final_start,
+                    walk_forward=args.walk_forward,
+                    wf_train_days=args.wf_train_days,
+                    wf_test_days=args.wf_test_days,
+                    max_position_weight=args.max_position_weight,
+                    max_gross_exposure=args.max_gross_exposure,
+                    target_volatility=args.target_volatility,
+                    volatility_window=args.volatility_window,
+                    regime_window=args.regime_window,
+                    risk_off_exposure=args.risk_off_exposure,
+                ),
+                config,
+            )
+            print(json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False))
+            return 2 if output["decision"] == "BLOCKED" else 0
+
+        config.apply()
+        profile = load_radar_profile(config.radar_path, args.profile)
+        if args.command == "scan":
+            universe = load_universe(profile.universe_profile)
+            output = scan_us_daily(profile, universe["us"], as_of=args.as_of)
+            output_path = (
+                config.resolve_project_path(args.output)
+                if args.output
+                else config.results_dir
+                / "radar"
+                / "us"
+                / profile.name
+                / output["signal_date"]
+                / "scan.json"
+            )
+            saved = write_scan_artifact(output, output_path)
+            print(json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False))
+            print(f"saved radar artifact: {saved}", file=sys.stderr)
+            return 2 if output["status"] == "DEGRADED" else 0
+
+        tracking_config = load_tracking_config(config.radar_path)
+        output_path = (
+            config.resolve_project_path(args.output)
+            if args.output
+            else config.results_dir / "radar" / "us" / profile.name / "tracking.json"
         )
-    except (WorkspaceConfigError, WorkflowError, ContractError, IntegrationError, ValueError) as exc:
+        scan_paths = (
+            [config.resolve_project_path(path) for path in args.scan]
+            if args.scan
+            else sorted(
+                (config.results_dir / "radar" / "us" / profile.name).glob("*/scan.json")
+            )
+        )
+        if not scan_paths:
+            raise TrackingError(f"no radar scan artifacts found for profile {profile.name}")
+        scan_artifacts = [load_json_object(path) for path in scan_paths]
+        existing = load_json_object(output_path) if output_path.is_file() else None
+        output = track_daily_radar(scan_artifacts, tracking_config, existing=existing)
+        saved = write_tracking_artifact(output, output_path)
+        print(json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False))
+        print(f"saved tracking artifact: {saved}", file=sys.stderr)
+        return 2 if output["summary"]["missing"] else 0
+    except (
+        WorkspaceConfigError,
+        WorkflowError,
+        ContractError,
+        IntegrationError,
+        RadarConfigError,
+        RadarError,
+        TrackingError,
+        ValueError,
+    ) as exc:
         parser.error(str(exc))
-    print(json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False))
-    return 2 if output["decision"] == "BLOCKED" else 0
+    raise AssertionError("unreachable")
 
 
 if __name__ == "__main__":

@@ -37,6 +37,8 @@
 | [M7-S2](milestones/m7-s2-execution-and-independent-test.md) | 次日开盘成交、训练/验证/最终测试隔离 |
 | [M7-S3](milestones/m7-s3-paper-ledger-and-next-open-signal.md) | 模拟账本、信号防重放和执行价格时效 |
 | [M7-S4](milestones/m7-s4-unified-cli-and-contracts.md) | 统一 CLI、工作目录和版本化契约 |
+| [M7-S5](milestones/m7-s5-us-daily-radar.md) | 固定美股自选池的量比、动量、收盘突破、过滤和排名 |
+| [M7-S6](milestones/m7-s6-forward-outcome-tracking.md) | Radar 信号去重、交易日成熟、多期限收益和 SPY 基准比较 |
 
 ### `research/`：人工研究笔记
 

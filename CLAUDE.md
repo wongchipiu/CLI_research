@@ -22,7 +22,7 @@
 - 更新数据：`uv run python scripts/update_data.py`（增量；质检 `scripts/check_data.py`）
 - 跑回测：`uv run python scripts/run_backtest.py --strategy <名> --market <cn|us> [-p k=v ...]`
   策略：sma_cross / momentum / boll_revert（注册表见 src/quant/strategies/）
-- 测试：`uv run pytest`
+- 测试：`.venv/bin/python -m pytest`（不要用普通 `uv run pytest` 覆盖非 editable 的 CLI 安装）
 
 ## Skills
 

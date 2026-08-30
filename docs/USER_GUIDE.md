@@ -1,6 +1,6 @@
 # 实用指南：用系统研究问题，判断证据，形成结论
 
-适用日期：2026-08-29，M7-S2。主目录：`/Users/brucehuang/Documents/CLI_research`；验证器目录：`/Users/brucehuang/Documents/gpt_quant`。
+适用日期：2026-08-30，M7-S5。主目录：`/Users/brucehuang/Documents/CLI_research`；验证器目录：`/Users/brucehuang/Documents/gpt_quant`。
 
 本指南教你做可复查的研究，不提供个股买卖建议。先记住：**程序运行成功、回测赚钱、证据通过验证、允许实盘交易，是四件不同的事。** 历史表现不能保证未来结果，展示方式也可能影响你对表现的判断。[SEC 投资者教育：Performance Claims](https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins-47)
 
@@ -12,7 +12,8 @@
 | 某个明确策略过去怎样 | 次日开盘模拟成交、费用、仓位限制和探索回测 | 全样本表现不能证明预测能力 |
 | 参数是不是挑出来的巧合 | 训练选参、验证段、独立最终测试、逐折滚动验证 | 多次试验后挑最好结果仍然可能过拟合 |
 | 证据能否进入下一步研究 | GPT 项目的独立验证器，逐项给出失败原因 | `PAPER_TRADING` 不是买入信号，`LIVE_READY` 也不是实盘授权 |
-| 每天自动发现异动股票 | **尚未完成**，计划在 S5–S7 加入 Scanner、跟踪和批处理 | 当前没有可用的 `quant scan` 或全美股异动雷达 |
+| 在固定美股自选池中发现当日异动 | 手动运行 `quant scan`，计算量比、动量和收盘突破并确定性排名 | 不是全美股覆盖、上涨概率、未来表现验证或自动交易 |
+| 跟踪异动后的表现 | 手动运行 `quant signals track`，按交易日更新 1/3/5/10/20 日描述性、可执行和基准超额收益 | 少量历史观察不能证明信号未来有效；自动每日批处理仍未完成 |
 
 本轮新结果会标记 `schema_version=2`、`execution_model=next_open_v1`。旧的同日收盘回测仍可显式运行，但不能直接拿来通过新验证器。旧模式仅保留成交时点的比较，不恢复历史版本中已经修复的资金错误。
 
@@ -80,6 +81,39 @@ cd /Users/brucehuang/Documents/CLI_research
 遇到以下情况先停止研究结论：关键标的无历史数据；时间区间不同；来源/复权含义不清楚；成交量单位未确认；数据仍是旧日期；起始基准报价缺失。
 
 `config/universe.yaml` 中的当前自选池不等于真实历史股票池。`config/universe_history.example.csv` 只是格式示例，不能复制后当作消除幸存者偏差的证据。没有可核实的历史成分数据，就在结论中注明这一限制，并接受验证器的阻止。
+
+### 手动运行美股日线 Radar
+
+更新并质检数据后，可以只读取本地日线做一次固定自选池扫描：
+
+```bash
+.venv/bin/quant scan --workspace config/workspace.yaml \
+  --market us --profile momentum_volume
+```
+
+默认配置在 `config/radar.yaml`，股票来自 `config/universe.yaml` 的 `extended` 快照并排除 SPY。扫描日默认取已加载自选池中的最新日期，也可用 `--as-of YYYY-MM-DD` 重现历史快照。JSON 保存到 `results/radar/us/<profile>/<日期>/scan.json`；同一配置和数据快照重复运行会得到相同排名、快照哈希和 `signal_id`。
+
+首版规则是：当日量比至少 1.5，且 5 日收益至少 3% 或当日收盘价突破此前 20 个有效交易日最高收盘价；同时检查最低价格、前 20 日平均成交额、至少 61 条历史、成交量为股、复权字段一致和当日非零成交量。20/60 日突破都只比较此前收盘价，不使用当日之后的数据。评分只是透明排序分，不是上涨概率。
+
+`status=DEGRADED` 或退出码 2 表示至少一个配置标的无法计算，具体看 `excluded[].reasons`。价格、流动性或信号阈值未通过是正常过滤；`no_data`、`missing_bar_on_signal_date`、`volume_unit_not_share`、`adjustment_missing_or_mixed` 和 `insufficient_history` 才是需要处理的数据缺口。零候选也可能是正常结果，不能为了得到名单而临时降低阈值。
+
+### 更新 Radar 信号的后续表现
+
+扫描结果保存在按日期分隔的 `scan.json` 后，运行：
+
+```bash
+.venv/bin/quant signals track --workspace config/workspace.yaml \
+  --market us --profile momentum_volume
+```
+
+命令会发现该 profile 已保存的所有扫描文件，以 `signal_id` 去重登记候选，并原子更新 `results/radar/us/<profile>/tracking.json`。同一扫描重复执行不会增加重复信号。默认以 SPY 的本地日线日期作为美股交易日序列，不用自然日猜测“第 5 天”。
+
+每个期限分别保存两套口径：
+
+- `descriptive`：信号日收盘价到未来收盘价的描述性收益，以及同期 SPY 收盘收益和超额。
+- `executable`：下一交易日开盘到目标日收盘，按配置扣买卖双边费用，并与相同成交时点、相同费用口径的 SPY 比较。
+
+`PENDING` 表示真实交易日还没有走够；`MISSING` 表示期限已经到达但标的或基准缺少所需开盘/收盘，命令退出码为 2。只有 `config/radar.yaml` 的 `tracking.delistings` 明确记录最终交易日时，目标日在其后才标记为 `DELISTED`；系统不会把普通缺 K 线猜成退市。缺失或退市收益都不会填 0。追加新的行情只会使新期限成熟；已经成熟的短期限结果仍由原目标交易日决定。
 
 ## 5. 预览实验边界，然后冻结实验
 

@@ -94,3 +94,20 @@
 - 新增只读 `--preflight` 和 launchd/caffeinate plist 生成器；生成器不会安装服务或修改 macOS 设置。
 - 离线三级止损仿真通过；两仓回归为 CLI 100 passed、GPT 31 tests OK。
 - 本机尚无用户 Paper 配置且未安装官方 `ibapi`，所以未连接 TWS、未发 Paper/实盘订单。下一步由用户在本地填写精确 `DU` 账号并接受官方 API 许可后完成 Paper 验收。
+
+## 2026-08-30：M7-S5 美股日线 Radar MVP 已完成
+
+- 新增版本化 `daily_radar_config` 与 `daily_radar_scan`，`quant scan --market us` 可对配置内的固定美股自选池计算 1/5/20 日收益、20 日量比和 20/60 日收盘突破。
+- 最低历史、价格、平均成交额、成交量单位、复权一致性和零成交量均有明确过滤；部分数据不可计算时返回 `DEGRADED` 与逐标的原因，整个池无数据时明确失败。
+- 数据快照、排序和 `signal_id` 均确定性生成；未来 K 线不会改变历史扫描日特征。同分以代码排序，不把评分解释为上涨概率。
+- 合成数据与 CLI 落盘测试已加入，`CLI_research` 完整回归为 **107 passed**；非 editable 重装后的 `quant scan/workflow --help` 冒烟检查通过。
+- 本地存量数据只读扫描覆盖 49 个 extended 美股标的，45 个完成特征计算，4 个因复权字段混合降级，默认阈值下零候选；未更新行情、未连接外部服务或券商。
+- 详细规则与边界见 [M7-S5 验收记录](milestones/m7-s5-us-daily-radar.md)。下一项为 M7-S6 后续表现跟踪。
+
+## 2026-08-30：M7-S6 Radar 后续表现跟踪已完成
+
+- 新增 `daily_radar_tracking` v1 和 `quant signals track`，按 `signal_id` 幂等登记扫描候选，并原子保存逐信号结果。
+- 期限严格依 SPY 本地会话成熟 1/3/5/10/20 个交易日；描述性收盘收益与次日开盘、扣双边费用的可执行收益分开保存，并各自比较 SPY。
+- 未成熟结果保持 `PENDING`；到期但缺开盘/收盘为 `MISSING` 并列出原因；只有配置提供明确最终交易日才标 `DELISTED`。三者均不前填、不补零，追加未来数据不会改写已经成熟的短期限目标日。
+- 合成数据覆盖幂等、未来数据隔离、费用、基准、缺失和显式退市路径；CLI 集成覆盖扫描后跟踪落盘。`CLI_research` 完整回归为 **112 passed**。
+- 详细规则见 [M7-S6 验收记录](milestones/m7-s6-forward-outcome-tracking.md)。下一项为 M7-S7 可重试每日批处理与报告。

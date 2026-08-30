@@ -6,4 +6,5 @@ paths:
   results: results
   studies: var/studies
   universe: config/universe.yaml
+  radar: config/radar.yaml
   gpt_quant: ../gpt_quant

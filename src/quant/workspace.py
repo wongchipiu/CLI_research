@@ -36,6 +36,7 @@ class WorkspaceConfig:
     results_dir: Path
     studies_dir: Path
     universe_path: Path
+    radar_path: Path
     gpt_quant_root: Path
 
     @classmethod
@@ -68,6 +69,7 @@ class WorkspaceConfig:
             results_dir=_resolve(project_root, paths["results"]),
             studies_dir=_resolve(project_root, paths["studies"]),
             universe_path=_resolve(project_root, paths["universe"]),
+            radar_path=_resolve(project_root, paths.get("radar", "config/radar.yaml")),
             gpt_quant_root=_resolve(project_root, paths["gpt_quant"]),
         )
         if not config.universe_path.is_file():
