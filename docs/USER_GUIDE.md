@@ -11,7 +11,7 @@
 | 本地价格能不能用于研究 | 数据更新、来源/量纲质检、缺失报价识别 | 质检通过不等于数据源完整、复权正确或覆盖全市场 |
 | 某个明确策略过去怎样 | 次日开盘模拟成交、费用、仓位限制和探索回测 | 全样本表现不能证明预测能力 |
 | 参数是不是挑出来的巧合 | 训练选参、验证段、独立最终测试、逐折滚动验证 | 多次试验后挑最好结果仍然可能过拟合 |
-| 证据能否进入下一步研究 | GPT 项目的独立验证器，逐项给出失败原因 | `PAPER_TRADING` 不是买入信号，`LIVE_READY` 也不是实盘授权 |
+| 证据能否进入下一步研究 | GPT 项目的独立验证器，逐项给出失败原因 | 当前最高只返回 `PAPER_TRADING`，它不是买入信号或实盘授权 |
 | 在固定美股自选池中发现当日异动 | 手动运行 `quant scan`，计算量比、动量和收盘突破并确定性排名 | 不是全美股覆盖、上涨概率、未来表现验证或自动交易 |
 | 跟踪异动后的表现 | `quant signals track` 按交易日更新 1/3/5/10/20 日描述性、可执行和基准超额收益 | 少量历史观察不能证明信号未来有效 |
 | 完成每日研究跑批 | `quant daily` 依次更新、质检、扫描、跟踪并生成报告，阶段状态可重试 | 还没有自动安装系统调度，也不会自动下单 |
@@ -236,7 +236,7 @@ PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
 | 样本不足或最终测试未运行 | 证据不够，不等于策略必定无效 | 说明缺口，增加真正新的观察，不降低标准凑通过 |
 | 最终测试亏损或风险超标 | 当前证据不支持事前假设/约束 | 记录失败原因，停止宣称有效；新想法要重新登记 |
 | `PAPER_TRADING` | 研究证据通过当前检查，可以讨论模拟验证 | 先验收 S3 的模拟账本与执行衔接，再持续观察 |
-| `LIVE_READY` | 仅表示现有验证器的条件枚举 | 不代表真实账户授权；不应靠手填天数或勾选人工复核制造通过 |
+| `PAPER_TRADING` 且模拟天数达标 | 只表示持久化模拟账本满足当前观察门槛 | 当前命令仍保持 `PAPER_TRADING`；独立签名批准包尚未实现，不产生实盘授权 |
 
 当前代码默认要求完整历史至少 756 个交易日、最终段完成持仓至少 50 次、最终段正收益、Sharpe/Calmar 不低于 1、最大回撤不超过 20%，并检查时点股票池、验证稳定性、滚动验证与邻参。它们是项目内的筛选规则，不是经过证明的盈利保证。
 
@@ -327,6 +327,11 @@ PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
   --price AAPL=101.00 --price MSFT=518.00
 PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
 .venv/bin/python -m gpt_quant.cli paper-report /absolute/path/to/paper-state.json
+
+# 6. 复核模拟天数时必须读取账本；该命令仍不会输出实盘批准
+PYTHONPATH=/Users/brucehuang/Documents/gpt_quant/src \
+.venv/bin/python -m gpt_quant.cli validate-cli-result \
+  /absolute/path/to/metrics.json --paper-state /absolute/path/to/paper-state.json
 ```
 
 执行前按这个顺序判断：

@@ -34,6 +34,6 @@
 
 - 默认 next_open_v1：decision[t] 在 t+1 开盘执行；需提供 open/close，不能用收盘报价代替缺失开盘报价。legacy_same_close 仅显式历史比较，不能用于新版准入。
 - S2 采用训练/验证/最终测试 60/20/20 时间划分；仅训练选参，最终测试使用情况由 --study-file 记录；实用指南见 docs/USER_GUIDE.md。
-- S3 模拟信号使用 paper_target_signal v2；不携带执行价格，同一 signal_id 只能处理一次，执行价格和时点由 gpt_quant 账本校验。
+- M8-S1 模拟信号使用 `paper_target_signal` v3；消费方重算内容身份并核对证据/策略包，不携带执行价格，同一 `signal_id` 只能处理一次，执行价格和时点由 gpt_quant 账本校验。
 - A股：涨停(±9.8%)禁买/跌停禁卖、停牌冻结；T+1 由日频收盘调仓天然满足。
 - 费用：cn 买 0.13%/卖 0.18%；us 双边 0.1%。

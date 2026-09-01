@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
@@ -18,6 +19,54 @@ from quant.backtest.study import data_fingerprint
 from quant.data.research import load_market_bars
 from quant.strategies import get_strategy
 from quant.workspace import WorkspaceConfig
+
+
+STRATEGY_PACKAGE_FIELDS = (
+    "strategy",
+    "market",
+    "params",
+    "risk_overlay",
+    "execution_model",
+    "universe",
+    "membership_sha256",
+    "source_sha256",
+    "data_snapshot_sha256",
+)
+
+PAPER_SIGNAL_IDENTITY_FIELDS = (
+    "schema_version",
+    "artifact_type",
+    "signal_date",
+    "generated_at",
+    "available_at",
+    "expires_at",
+    "execution_model",
+    "strategy",
+    "market",
+    "universe",
+    "evidence_sha256",
+    "strategy_package_sha256",
+    "signal_data_sha256",
+    "target_weights",
+)
+
+
+def canonical_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def select_fields(payload: dict, fields: tuple[str, ...], label: str) -> dict:
+    missing = set(fields) - payload.keys()
+    if missing:
+        raise ValueError(f"{label} is missing fields: {sorted(missing)}")
+    return {field: payload[field] for field in fields}
 
 
 def main() -> None:
@@ -35,7 +84,10 @@ def main() -> None:
 
     raw = args.metrics_path.read_bytes()
     payload = json.loads(raw)
-    required = {"strategy", "market", "params", "universe", "risk_overlay", "validation", "research_protocol"}
+    required = {
+        "strategy", "market", "params", "universe", "risk_overlay", "validation",
+        "research_protocol", "membership_sha256", "source_sha256", "data_snapshot_sha256",
+    }
     missing = required - payload.keys()
     if missing:
         parser.error(f"metrics artifact lacks paper-signal evidence: {sorted(missing)}")
@@ -61,6 +113,8 @@ def main() -> None:
     overlay = RiskOverlayConfig(**payload["risk_overlay"])
     target = apply_risk_overlay(bars.signal_close, decision, overlay).where(bars.eligible, 0.0).iloc[-1]
     prices = bars.close.iloc[-1]
+    if any(not math.isfinite(float(weight)) for weight in target):
+        parser.error("strategy produced non-finite target weights")
     active = target[target > 1e-10]
     now = datetime.now(timezone.utc)
     signal_date = bars.close.index[-1].date()
@@ -73,22 +127,26 @@ def main() -> None:
     expires_at = available_at + timedelta(days=7)
     if now > expires_at:
         parser.error("latest local signal is already stale; update and quality-check market data first")
+    missing_reference_prices = [
+        symbol for symbol in active.index
+        if symbol not in prices or not math.isfinite(float(prices[symbol])) or float(prices[symbol]) <= 0
+    ]
+    if missing_reference_prices:
+        parser.error(f"active targets lack valid reference closes: {sorted(missing_reference_prices)}")
+    try:
+        strategy_package_hash = canonical_sha256(
+            select_fields(payload, STRATEGY_PACKAGE_FIELDS, "strategy package")
+        )
+    except (TypeError, ValueError) as exc:
+        parser.error(f"strategy package is not canonical JSON: {exc}")
+    evidence_hash = hashlib.sha256(raw).hexdigest()
+    signal_data_hash = data_fingerprint(bars)
     target_weights = {symbol: round(float(weight), 10) for symbol, weight in active.items()}
-    signal_identity = {
-        "evidence_sha256": hashlib.sha256(raw).hexdigest(),
-        "signal_date": signal_date.isoformat(),
-        "signal_data_sha256": data_fingerprint(bars),
-        "target_weights": target_weights,
-        "execution_model": "next_open_v1",
-    }
-    signal_id = hashlib.sha256(
-        json.dumps(signal_identity, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
     signal = {
-        "schema_version": 2,
+        "schema_version": 3,
         "artifact_type": "paper_target_signal",
-        "signal_id": signal_id,
-        "generated_at": now.isoformat(),
+        "generated_at": available_at.isoformat(),
+        "created_at": now.isoformat(),
         "available_at": available_at.isoformat(),
         "expires_at": expires_at.isoformat(),
         "execution_model": "next_open_v1",
@@ -97,8 +155,9 @@ def main() -> None:
         "market": payload["market"],
         "universe": universe["profile"],
         "evidence_path": str(args.metrics_path.resolve()),
-        "evidence_sha256": hashlib.sha256(raw).hexdigest(),
-        "signal_data_sha256": signal_identity["signal_data_sha256"],
+        "evidence_sha256": evidence_hash,
+        "strategy_package_sha256": strategy_package_hash,
+        "signal_data_sha256": signal_data_hash,
         "target_weights": target_weights,
         "reference_close_prices": {
             symbol: round(float(price), 8)
@@ -107,7 +166,10 @@ def main() -> None:
         "cash_weight": round(1.0 - float(active.sum()), 10),
         "execution_prices_required": True,
     }
-    encoded = json.dumps(signal, ensure_ascii=False, indent=2)
+    signal["signal_id"] = canonical_sha256(
+        select_fields(signal, PAPER_SIGNAL_IDENTITY_FIELDS, "paper signal identity")
+    )
+    encoded = json.dumps(signal, ensure_ascii=False, indent=2, allow_nan=False)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(encoded, encoding="utf-8")

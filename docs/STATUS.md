@@ -87,6 +87,13 @@
 - 两仓通过可选 integration 依赖连接，不复制源码、不合仓；旧脚本只新增可选 `--workspace`，原入口保留。
 - 验收详情与最终测试数见 [M7-S4 验收记录](milestones/m7-s4-unified-cli-and-contracts.md)。下一项为 M7-S5 美股日线 Radar MVP。
 
+## 2026-09-01：M8-S1 准入与模拟信号加固已完成
+
+- `validate-cli-result` 已删除 `--paper-days` 和 `--manual-review`，模拟天数只从持久化账户读取；没有独立签名批准包时最高只返回 `PAPER_TRADING`。
+- `paper_target_signal` 已升级为 v3 内容身份，消费端重算 `signal_id`，并核对证据、策略包、策略、市场、股票池与数据哈希。
+- 非有限/伪装数值和缺失目标价格均 fail closed；缺价不会估值、下单或消费信号。旧 v2 信号和缺策略包哈希的旧账户需重建，不静默迁移。
+- 验收：CLI **117 passed**，GPT **35 tests OK**，离线模拟案例、两仓编译和差异检查通过。正式交易所日历、共享契约包、签名批准包、模型和券商均未接入；详见 [M8-S1 验收记录](milestones/m8-s1-gate-hardening.md)。
+
 ## 2026-08-29：M6-S2 夜间自动止损接口代码完成
 
 - 强化官方 TWS API close-only 接口：订单 ID 单调推进，只允许 `risk-` 股票平仓，拒绝超量反向开仓；连接回调和订单状态有隔离测试。

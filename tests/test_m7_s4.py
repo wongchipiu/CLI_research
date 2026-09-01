@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from quant.contracts import ContractError, validate_strategy_validation
+from quant.contracts import ContractError, validate_strategy_decision, validate_strategy_validation
 from quant.services.workflow import WorkflowRequest, run_workflow
 from quant.workspace import DEFAULT_CONFIG, WorkspaceConfig
 
@@ -48,6 +48,16 @@ def test_workspace_paths_do_not_depend_on_current_directory(tmp_path, monkeypatc
         tmp_path / "artifacts" / "studies" / "momentum-us.json"
     ).resolve()
     assert DEFAULT_CONFIG.name == "workspace.yaml"
+
+
+def test_cross_project_decision_contract_rejects_live_ready():
+    with pytest.raises(ContractError, match="unsupported"):
+        validate_strategy_decision({
+            "schema_version": 1,
+            "artifact_type": "strategy_validation_decision",
+            "decision": "LIVE_READY",
+            "checks": [],
+        })
 
 
 def test_workflow_uses_versioned_contracts_and_configured_result_root(tmp_path):

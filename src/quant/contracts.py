@@ -54,7 +54,7 @@ def validate_strategy_validation(payload: dict) -> dict:
 
 def validate_strategy_decision(payload: dict) -> dict:
     _require_envelope(payload, "strategy_validation_decision", 1)
-    if payload.get("decision") not in {"BLOCKED", "PAPER_TRADING", "LIVE_READY"}:
+    if payload.get("decision") not in {"BLOCKED", "PAPER_TRADING"}:
         raise ContractError("strategy validation decision is unsupported")
     if not isinstance(payload.get("checks"), list):
         raise ContractError("strategy validation decision checks must be a list")
