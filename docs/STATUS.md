@@ -94,6 +94,13 @@
 - 非有限/伪装数值和缺失目标价格均 fail closed；缺价不会估值、下单或消费信号。旧 v2 信号和缺策略包哈希的旧账户需重建，不静默迁移。
 - 验收：CLI **117 passed**，GPT **35 tests OK**，离线模拟案例、两仓编译和差异检查通过。正式交易所日历、共享契约包、签名批准包、模型和券商均未接入；详见 [M8-S1 验收记录](milestones/m8-s1-gate-hardening.md)。
 
+## 2026-09-02：M8-S2 版本冻结交易日历已完成
+
+- 两仓精确锁定并运行时核对 `exchange-calendars==4.13.2`；美股使用 XNYS，中国 A 股使用显式 `XSHG+XSHE` 契约身份。
+- `paper_target_signal` 升级为 v4，`calendar_id` 纳入内容哈希并持久化到账户；节假日、XNYS 提前收市、A 股午休、版本漂移和 coverage 外日期均 fail closed。
+- 旧 v3 信号和缺 `calendar_id` 的旧账户必须从原证据重建，不静默迁移。验收：CLI **120 passed**、GPT **40 tests OK**、离线 demo、编译和差异检查通过。
+- 尚未实现共享契约包、Point-in-Time SEC Evidence Store、签名批准包、真实模型或券商连接；详见 [M8-S2 验收记录](milestones/m8-s2-pinned-exchange-calendars.md)。
+
 ## 2026-08-29：M6-S2 夜间自动止损接口代码完成
 
 - 强化官方 TWS API close-only 接口：订单 ID 单调推进，只允许 `risk-` 股票平仓，拒绝超量反向开仓；连接回调和订单状态有隔离测试。

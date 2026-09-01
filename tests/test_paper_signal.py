@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 
-def test_v3_paper_signal_is_content_addressed_and_has_no_execution_prices(tmp_path):
+def test_v4_paper_signal_binds_calendar_and_has_no_execution_prices(tmp_path):
     root = Path(__file__).resolve().parents[1]
     metrics = tmp_path / "metrics.json"
     metrics.write_text(json.dumps({
@@ -34,14 +34,15 @@ import numpy as np
 import pandas as pd
 from quant.data import research
 from quant.data.research import MarketBars
-index=pd.bdate_range(end=pd.Timestamp.now().normalize(),periods=40)
+index=pd.bdate_range(end=pd.Timestamp('2026-09-01'),periods=40)
 close=pd.DataFrame({'A':10*np.cumprod(np.resize([1.01,1.002,.998],len(index)))},index=index)
 opens=close/1.001
 bars=MarketBars(opens,close,close.notna(),opens['A'],close['A'],'A',
                 {'profile':'synthetic','point_in_time':True,'membership_sha256':'m'*64})
 research.load_market_bars=lambda *args: bars
 sys.argv=['scripts/generate_paper_signal.py',sys.argv[1]]
-runpy.run_path('scripts/generate_paper_signal.py',run_name='__main__')
+namespace=runpy.run_path('scripts/generate_paper_signal.py')
+namespace['main'](pd.Timestamp('2026-09-02T00:00:00Z').to_pydatetime())
 '''
     env = {**os.environ, "PYTHONPATH": str(root / "src")}
     command = [sys.executable, "-B", "-c", code, str(metrics)]
@@ -49,12 +50,13 @@ runpy.run_path('scripts/generate_paper_signal.py',run_name='__main__')
     second = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True)
     assert first.returncode == second.returncode == 0, first.stderr or second.stderr
     one, two = json.loads(first.stdout), json.loads(second.stdout)
-    assert one["schema_version"] == 3
+    assert one["schema_version"] == 4
     assert one["artifact_type"] == "paper_target_signal"
     assert one["execution_model"] == "next_open_v1"
     assert one["signal_id"] == two["signal_id"]
     assert len(one["strategy_package_sha256"]) == 64
     assert len(one["signal_data_sha256"]) == 64
+    assert one["calendar_id"] == "exchange_calendars:4.13.2:XNYS"
     assert one["execution_prices_required"] is True
     assert "prices" not in one
     assert "reference_close_prices" in one

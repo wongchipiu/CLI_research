@@ -7,9 +7,8 @@ import hashlib
 import json
 import math
 import sys
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -17,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from quant.backtest.risk_overlay import RiskOverlayConfig, apply_risk_overlay
 from quant.backtest.study import data_fingerprint
 from quant.data.research import load_market_bars
+from quant.exchange_calendar import calendar_id, is_trading_date, session_close
 from quant.strategies import get_strategy
 from quant.workspace import WorkspaceConfig
 
@@ -41,6 +41,7 @@ PAPER_SIGNAL_IDENTITY_FIELDS = (
     "available_at",
     "expires_at",
     "execution_model",
+    "calendar_id",
     "strategy",
     "market",
     "universe",
@@ -69,7 +70,7 @@ def select_fields(payload: dict, fields: tuple[str, ...], label: str) -> dict:
     return {field: payload[field] for field in fields}
 
 
-def main() -> None:
+def main(now: datetime | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("metrics_path", type=Path)
     parser.add_argument("--output", type=Path, default=None)
@@ -116,16 +117,13 @@ def main() -> None:
     if any(not math.isfinite(float(weight)) for weight in target):
         parser.error("strategy produced non-finite target weights")
     active = target[target > 1e-10]
-    now = datetime.now(timezone.utc)
+    current_time = now or datetime.now(timezone.utc)
     signal_date = bars.close.index[-1].date()
-    market_timezone, close_time = (
-        (ZoneInfo("America/New_York"), time(16, 0))
-        if payload["market"] == "us"
-        else (ZoneInfo("Asia/Shanghai"), time(15, 0))
-    )
-    available_at = datetime.combine(signal_date, close_time, tzinfo=market_timezone)
+    if not is_trading_date(payload["market"], signal_date):
+        parser.error("latest local signal date is not a session in the pinned exchange calendar")
+    available_at = session_close(payload["market"], signal_date)
     expires_at = available_at + timedelta(days=7)
-    if now > expires_at:
+    if current_time > expires_at:
         parser.error("latest local signal is already stale; update and quality-check market data first")
     missing_reference_prices = [
         symbol for symbol in active.index
@@ -143,13 +141,14 @@ def main() -> None:
     signal_data_hash = data_fingerprint(bars)
     target_weights = {symbol: round(float(weight), 10) for symbol, weight in active.items()}
     signal = {
-        "schema_version": 3,
+        "schema_version": 4,
         "artifact_type": "paper_target_signal",
         "generated_at": available_at.isoformat(),
-        "created_at": now.isoformat(),
+        "created_at": current_time.isoformat(),
         "available_at": available_at.isoformat(),
         "expires_at": expires_at.isoformat(),
         "execution_model": "next_open_v1",
+        "calendar_id": calendar_id(payload["market"]),
         "signal_date": signal_date.isoformat(),
         "strategy": payload["strategy"],
         "market": payload["market"],

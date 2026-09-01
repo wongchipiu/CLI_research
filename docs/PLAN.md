@@ -90,6 +90,6 @@ Pro 的额度按 5 小时滚动窗口 + 每周上限计算。建议：
 ## 7. M8 下一代大模型研究系统（2026-09-01）
 
 - **S1 已完成：准入与模拟信号 Gate Hardening。** 已删除自报模拟天数/人工复核的准入路径；验证器在没有独立签名批准包前最高只返回 `PAPER_TRADING`；已实现内容寻址的 `paper_target_signal` v3、策略包/证据绑定、有限数校验和缺价原子拒绝。详见 [M8-S1 验收记录](milestones/m8-s1-gate-hardening.md)。
-- S2（后续）：接入并冻结正式 NYSE/SSE/SZSE 交易日历版本，替换仅排除周末的离线占位判断。
+- **S2 已完成：版本冻结的 NYSE/SSE/SZSE 交易日历。** 已精确锁定 `exchange_calendars` 4.13.2；美股采用 XNYS，中国 A 股采用显式 `XSHG+XSHE` 契约；v4 模拟信号和账户绑定 `calendar_id`，覆盖节假日、提前收市、午休和范围外 fail-closed。详见 [M8-S2 验收记录](milestones/m8-s2-pinned-exchange-calendars.md)。
 - S3（后续）：Point-in-Time SEC Evidence Store 和共享契约包。
 - S4（后续，需模型服务确认）：只读 Model Gateway 与 SEC 事件特征 challenger。
