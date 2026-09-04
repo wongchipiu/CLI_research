@@ -94,3 +94,7 @@ uv run python scripts/run_backtest.py --strategy boll_revert --market cn -p wind
 ```
 
 开发新功能时，先读 `docs/REQUIREMENTS.md`、`docs/PLAN.md`、`docs/STATUS.md`，一次只做 PLAN 里的一个 S 条目。
+
+## 策略研究
+
+- [A股热点小盘股尾盘隔夜动量策略](docs/research/a-share-hotspot-overnight-momentum/README.md)
