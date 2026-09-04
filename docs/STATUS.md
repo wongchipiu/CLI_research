@@ -101,6 +101,11 @@
 - 旧 v3 信号和缺 `calendar_id` 的旧账户必须从原证据重建，不静默迁移。验收：CLI **120 passed**、GPT **40 tests OK**、离线 demo、编译和差异检查通过。
 - 尚未实现共享契约包、Point-in-Time SEC Evidence Store、签名批准包、真实模型或券商连接；详见 [M8-S2 验收记录](milestones/m8-s2-pinned-exchange-calendars.md)。
 
+## 2026-09-05：M8-S3 SEC Evidence v1 第一阶段
+
+- `quant validate-sec-evidence` 已验证版本化 SEC Evidence v1，检查内容哈希、字段身份、时间顺序、HTTPS 来源和历史 `as-of` 可用性。
+- 与 `gpt_quant.sec_evidence.SecEvidenceStore` 的本地 JSONL 记录格式对齐；未联网抓取 SEC，未宣称事实字段已获正式数据授权。
+
 ## 2026-08-29：M6-S2 夜间自动止损接口代码完成
 
 - 强化官方 TWS API close-only 接口：订单 ID 单调推进，只允许 `risk-` 股票平仓，拒绝超量反向开仓；连接回调和订单状态有隔离测试。

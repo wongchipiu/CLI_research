@@ -11,7 +11,7 @@ from typing import Sequence
 from zoneinfo import ZoneInfo
 
 from quant.adapters import IntegrationError
-from quant.contracts import ContractError, load_json_object
+from quant.contracts import ContractError, load_json_object, validate_sec_evidence
 from quant.data.universe import load_universe
 from quant.jobs import DailyJobRequest, run_daily_job
 from quant.scanner import (
@@ -84,6 +84,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=datetime.now(ZoneInfo("America/New_York")).date().isoformat(),
         help="idempotency/report date in YYYY-MM-DD; defaults to current New York date",
     )
+    sec = subparsers.add_parser("validate-sec-evidence", help="validate a Point-in-Time SEC evidence artifact")
+    sec.add_argument("path", type=Path)
+    sec.add_argument("--as-of", help="optional ISO-8601 historical availability cutoff")
+    sec.add_argument("--workspace", type=Path, default=DEFAULT_CONFIG)
     daily.add_argument("--as-of", help="optional radar signal date and update end date")
     daily.add_argument(
         "--skip-update",
@@ -94,6 +98,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         config = WorkspaceConfig.load(args.workspace)
+        if args.command == "validate-sec-evidence":
+            as_of = datetime.fromisoformat(args.as_of) if args.as_of else None
+            payload = validate_sec_evidence(load_json_object(args.path), as_of=as_of)
+            print(json.dumps({"status": "VALID", "evidence_id": payload["evidence_id"]}, ensure_ascii=False, indent=2))
+            return 0
         if args.command == "workflow":
             output = run_workflow(
                 WorkflowRequest(

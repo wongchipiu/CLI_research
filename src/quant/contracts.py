@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
+import hashlib
 from pathlib import Path
 
 
@@ -58,6 +60,41 @@ def validate_strategy_decision(payload: dict) -> dict:
         raise ContractError("strategy validation decision is unsupported")
     if not isinstance(payload.get("checks"), list):
         raise ContractError("strategy validation decision checks must be a list")
+    return payload
+
+
+def validate_sec_evidence(payload: dict, *, as_of: datetime | None = None) -> dict:
+    """Validate the provider-neutral SEC Evidence v1 contract."""
+    _require_envelope(payload, "sec_evidence", 1)
+    required = ("evidence_id", "accession", "issuer_cik", "form_type", "filed_at", "period_end", "source_url", "content_sha256", "content", "retrieved_at")
+    for key in required:
+        if not isinstance(payload.get(key), str) or not payload[key]:
+            raise ContractError(f"sec_evidence {key} must be a non-empty string")
+    if payload["evidence_id"] != f"{payload['issuer_cik']}:{payload['accession']}":
+        raise ContractError("sec_evidence evidence_id does not match issuer and accession")
+    if not payload["issuer_cik"].isdigit():
+        raise ContractError("sec_evidence issuer_cik must contain only digits")
+    digest = payload["content_sha256"]
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+        raise ContractError("sec_evidence content_sha256 must be a lowercase SHA-256 digest")
+    if hashlib.sha256(payload["content"].encode("utf-8")).hexdigest() != digest:
+        raise ContractError("sec_evidence content_sha256 does not match content")
+    if not payload["source_url"].startswith("https://"):
+        raise ContractError("sec_evidence source_url must use https")
+    try:
+        filed_at = datetime.fromisoformat(payload["filed_at"].replace("Z", "+00:00"))
+        retrieved_at = datetime.fromisoformat(payload["retrieved_at"].replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ContractError("sec_evidence timestamps must be ISO-8601") from exc
+    if filed_at.tzinfo is None or retrieved_at.tzinfo is None:
+        raise ContractError("sec_evidence timestamps must include a UTC offset")
+    if retrieved_at < filed_at:
+        raise ContractError("sec_evidence retrieved_at cannot precede filed_at")
+    if as_of is not None:
+        if as_of.tzinfo is None:
+            raise ContractError("sec_evidence as_of must include a UTC offset")
+        if filed_at > as_of:
+            raise ContractError("sec_evidence is not available at the requested as_of")
     return payload
 
 
