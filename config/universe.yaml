@@ -1,19 +1,119 @@
-# 股票池配置。A股代码用 6 位字符串；美股用 ticker。
-# cn_index 是 A股基准指数（000300 = 沪深300），美股基准直接放在 us 里（SPY）。
+# 可复现股票池快照。extended 是研究用流动性大盘股集合，不是历史指数成分，
+# 因此回测报告必须保留 as_of，并明确仍存在幸存者偏差。
+as_of: "2026-07-21"
+default_profile: baseline
 
-cn:
-  - "600519"   # 贵州茅台
-  - "000858"   # 五粮液
-  - "601318"   # 中国平安
-  - "600036"   # 招商银行
-  - "000001"   # 平安银行
+profiles:
+  baseline:
+    point_in_time: false
+    survivorship_bias: "current snapshot applied retrospectively"
+    cn: ["600519", "000858", "601318", "600036", "000001"]
+    cn_index: ["000300"]
+    us: [AAPL, MSFT, NVDA, GOOGL, SPY]
 
-cn_index:
-  - "000300"   # 沪深300（基准）
-
-us:
-  - AAPL
-  - MSFT
-  - NVDA
-  - GOOGL
-  - SPY        # 美股基准
+  extended:
+    point_in_time: false
+    survivorship_bias: "current liquid large-cap snapshot applied retrospectively"
+    cn:
+      - "600519"
+      - "000858"
+      - "601318"
+      - "600036"
+      - "000001"
+      - "601166"
+      - "601398"
+      - "601288"
+      - "601939"
+      - "601988"
+      - "600030"
+      - "601688"
+      - "600999"
+      - "601211"
+      - "601066"
+      - "600276"
+      - "000333"
+      - "000651"
+      - "600887"
+      - "603288"
+      - "600809"
+      - "000568"
+      - "002594"
+      - "601012"
+      - "300750"
+      - "600900"
+      - "600028"
+      - "601857"
+      - "600031"
+      - "601899"
+      - "600309"
+      - "601088"
+      - "601225"
+      - "600690"
+      - "000725"
+      - "002415"
+      - "002475"
+      - "300059"
+      - "002714"
+      - "002352"
+      - "300015"
+      - "600104"
+      - "601633"
+      - "600585"
+      - "000338"
+      - "000063"
+      - "600050"
+      - "601888"
+      - "600436"
+      - "601919"
+    cn_index: ["000300"]
+    us:
+      - AAPL
+      - MSFT
+      - NVDA
+      - GOOGL
+      - AMZN
+      - META
+      - AVGO
+      - TSLA
+      - BRK-B
+      - LLY
+      - JPM
+      - V
+      - MA
+      - COST
+      - NFLX
+      - ORCL
+      - XOM
+      - WMT
+      - HD
+      - PG
+      - JNJ
+      - ABBV
+      - BAC
+      - KO
+      - CRM
+      - AMD
+      - CSCO
+      - CVX
+      - MRK
+      - UNH
+      - PEP
+      - TMO
+      - ADBE
+      - MCD
+      - ACN
+      - LIN
+      - DIS
+      - QCOM
+      - TXN
+      - AMGN
+      - IBM
+      - GE
+      - CAT
+      - GS
+      - NOW
+      - INTU
+      - ISRG
+      - BKNG
+      - AMAT
+      - SPY

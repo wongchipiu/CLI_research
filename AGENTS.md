@@ -22,7 +22,7 @@
 - 更新数据：`uv run python scripts/update_data.py`（增量；质检 `scripts/check_data.py`）
 - 跑回测：`uv run python scripts/run_backtest.py --strategy <名> --market <cn|us> [-p k=v ...]`
   策略：sma_cross / momentum / boll_revert（注册表见 src/quant/strategies/）
-- 测试：`uv run pytest`
+- 测试：`.venv/bin/python -m pytest`（不要用普通 `uv run pytest` 覆盖非 editable 的 CLI 安装）
 
 ## Skills
 
@@ -32,6 +32,8 @@
 
 ## 回测引擎要点（src/quant/backtest/engine.py）
 
-- decision[t] 在 t 收盘执行、赚 t+1 收益（无前视）；权重行和 ≤1，余者现金。
+- 默认 next_open_v1：decision[t] 在 t+1 开盘执行；需提供 open/close，不能用收盘报价代替缺失开盘报价。legacy_same_close 仅显式历史比较，不能用于新版准入。
+- S2 采用训练/验证/最终测试 60/20/20 时间划分；仅训练选参，最终测试使用情况由 --study-file 记录；实用指南见 docs/USER_GUIDE.md。
+- M8-S2 模拟信号使用 `paper_target_signal` v4；消费方重算内容身份并核对证据、策略包和冻结 `calendar_id`，不携带执行价格，同一 `signal_id` 只能处理一次，执行价格和交易时段由 gpt_quant 账本校验。
 - A股：涨停(±9.8%)禁买/跌停禁卖、停牌冻结；T+1 由日频收盘调仓天然满足。
 - 费用：cn 买 0.13%/卖 0.18%；us 双边 0.1%。

@@ -55,7 +55,8 @@ def _fetch_cn_eastmoney(symbol: str, start: str, end: str) -> pd.DataFrame:
         "日期": "date", "开盘": "open", "最高": "high", "最低": "low",
         "收盘": "close", "成交量": "volume", "成交额": "amount",
     })
-    return df[["date", "open", "high", "low", "close", "volume", "amount"]]
+    df = df[["date", "open", "high", "low", "close", "volume", "amount"]]
+    return _with_metadata(df, "eastmoney", "qfq", "lot")
 
 
 def _fetch_cn_sina(symbol: str, start: str, end: str) -> pd.DataFrame:
@@ -71,7 +72,7 @@ def _fetch_cn_sina(symbol: str, start: str, end: str) -> pd.DataFrame:
     cols = ["date", "open", "high", "low", "close", "volume"]
     if "amount" in df.columns:
         cols.append("amount")
-    return df.loc[mask, cols]
+    return _with_metadata(df.loc[mask, cols], "sina", "qfq", "share")
 
 
 def fetch_cn_daily(symbol: str, start: str, end: str) -> pd.DataFrame:
@@ -101,7 +102,8 @@ def fetch_cn_index_daily(symbol: str, start: str, end: str) -> pd.DataFrame:
                 "日期": "date", "开盘": "open", "最高": "high", "最低": "low",
                 "收盘": "close", "成交量": "volume", "成交额": "amount",
             })
-            return df[["date", "open", "high", "low", "close", "volume", "amount"]]
+            df = df[["date", "open", "high", "low", "close", "volume", "amount"]]
+            return _with_metadata(df, "eastmoney", "none", "lot")
         except Exception as e:
             print(f"  [warn] 东财指数源不可用({type(e).__name__})，本轮改用新浪源")
             _em_broken = True
@@ -113,7 +115,8 @@ def fetch_cn_index_daily(symbol: str, start: str, end: str) -> pd.DataFrame:
     df = raw.rename(columns=str.lower)
     df["date"] = pd.to_datetime(df["date"])
     mask = (df["date"] >= pd.Timestamp(start)) & (df["date"] <= pd.Timestamp(end))
-    return df.loc[mask, ["date", "open", "high", "low", "close", "volume"]]
+    df = df.loc[mask, ["date", "open", "high", "low", "close", "volume"]]
+    return _with_metadata(df, "sina", "none", "share")
 
 
 def _fetch_us_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:
@@ -130,7 +133,8 @@ def _fetch_us_yfinance(symbol: str, start: str, end: str) -> pd.DataFrame:
         "Low": "low", "Close": "close", "Volume": "volume",
     })
     df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
-    return df[["date", "open", "high", "low", "close", "volume"]]
+    df = df[["date", "open", "high", "low", "close", "volume"]]
+    return _with_metadata(df, "yfinance", "auto_adjust", "share")
 
 
 def _fetch_us_akshare(symbol: str, start: str, end: str) -> pd.DataFrame:
@@ -142,7 +146,8 @@ def _fetch_us_akshare(symbol: str, start: str, end: str) -> pd.DataFrame:
     df = raw.rename(columns=str.lower)
     df["date"] = pd.to_datetime(df["date"])
     mask = (df["date"] >= pd.Timestamp(start)) & (df["date"] <= pd.Timestamp(end))
-    return df.loc[mask, ["date", "open", "high", "low", "close", "volume"]]
+    df = df.loc[mask, ["date", "open", "high", "low", "close", "volume"]]
+    return _with_metadata(df, "sina", "qfq", "share")
 
 
 def fetch_us_daily(symbol: str, start: str, end: str) -> pd.DataFrame:
@@ -157,3 +162,16 @@ def fetch_us_daily(symbol: str, start: str, end: str) -> pd.DataFrame:
             print(f"  [warn] yfinance 不可用({type(e).__name__})，本轮改用新浪源")
             _yf_broken = True
     return _fetch_us_akshare(symbol, start, end)
+
+
+def _with_metadata(
+    frame: pd.DataFrame,
+    source: str,
+    adjustment: str,
+    volume_unit: str,
+) -> pd.DataFrame:
+    out = frame.copy()
+    out["source"] = source
+    out["adjustment"] = adjustment
+    out["volume_unit"] = volume_unit
+    return out

@@ -1,0 +1,10 @@
+schema_version: 1
+artifact_type: quant_workspace_config
+project_root: ..
+paths:
+  data: data
+  results: results
+  studies: var/studies
+  universe: config/universe.yaml
+  radar: config/radar.yaml
+  gpt_quant: ../gpt_quant

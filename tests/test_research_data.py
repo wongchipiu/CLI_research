@@ -33,7 +33,7 @@ def test_load_market_close_preserves_missing_quotes_for_execution(tmp_path, monk
 
     # 即使策略要求换仓，缺报价期间也不能出售 B 为 A 提供资金。
     decision = pd.DataFrame({"A": [0.0, 1.0, 1.0], "B": [1.0, 0.0, 0.0]}, index=close.index)
-    result = run(close, decision, MarketConfig(buy_cost=0.0, sell_cost=0.0, limit_pct=None))
+    result = run(close, decision, MarketConfig(buy_cost=0.0, sell_cost=0.0, limit_pct=None), execution_model="legacy_same_close")
     assert result.weights.iloc[1].to_dict() == pytest.approx({"A": 0.0, "B": 1.0})
     assert result.weights.iloc[2].to_dict() == pytest.approx({"A": 1.0, "B": 0.0})
     assert result.nav.tolist() == pytest.approx([1.0, 1.0, 1.0])
@@ -60,3 +60,17 @@ def test_market_loader_accepts_legacy_and_profile_universe_files(tmp_path, monke
     assert benchmark.iloc[0] == 10
     assert name == "SPY"
     assert metadata["profile"] == profile
+
+
+def test_removed_member_keeps_execution_quotes_but_loses_signal_eligibility(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_DIR", tmp_path / "bars")
+    monkeypatch.setattr(research, "load_universe", lambda profile=None: {"profile": "test", "us": ["A", "SPY"]})
+    history = tmp_path / "members.csv"
+    history.write_text("market,symbol,effective_from,effective_to\nus,A,2026-01-05,2026-01-05\n")
+    frame = pd.DataFrame({"date": pd.to_datetime(["2026-01-05", "2026-01-06"]),
+                          "open": 10., "high": 10., "low": 10., "close": 10., "volume": 100})
+    storage.save_daily("us", "A", frame)
+    bars = research.load_market_bars("us", membership_file=str(history))
+    assert not bars.eligible.iloc[-1, 0]
+    assert pd.isna(bars.signal_close.iloc[-1, 0])
+    assert bars.open.iloc[-1, 0] == bars.close.iloc[-1, 0] == 10.

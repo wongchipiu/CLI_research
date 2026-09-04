@@ -33,3 +33,30 @@ def test_summarize_with_benchmark():
     assert m["benchmark"]["total_return"] == pytest.approx(0.2)
     assert m["excess_cagr"] > 0
     assert m["ann_turnover"] == pytest.approx(0.01 * 252)
+
+
+def test_completed_positions_counts_only_held_to_flat_transitions():
+    weights = pd.DataFrame(
+        {"A": [0.0, 1.0, 1.0, 0.0, 0.0], "B": [0.0, 0.5, 0.0, 0.5, 0.0]},
+        index=pd.bdate_range("2024-01-01", periods=5),
+    )
+    assert metrics.completed_positions(weights) == 3
+
+
+def test_summary_includes_initial_fee_and_initial_equity_peak():
+    index = pd.bdate_range("2026-01-05", periods=2)
+    nav = pd.Series([1 / 1.01, .99 / 1.01], index=index)
+    returns = nav / nav.shift(1, fill_value=1) - 1
+    result = metrics.summarize(nav, returns, pd.Series(0.5, index=index))
+    assert result["total_return"] == pytest.approx(-.0198)
+    assert result["max_drawdown"] == pytest.approx(-.0198)
+    assert result["annualization_periods"] == 2
+
+
+def test_missing_starting_benchmark_is_not_filled_from_future():
+    index = pd.bdate_range("2026-01-05", periods=3)
+    nav = pd.Series([1., 1., 1.], index=index)
+    benchmark = pd.Series([np.nan, 100., 110.], index=index)
+    result = metrics.summarize(nav, nav - 1, nav - 1, benchmark)
+    assert "benchmark" not in result
+    assert result["benchmark_status"] == "missing_initial_or_aligned_quote"

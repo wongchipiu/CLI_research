@@ -1,94 +1,86 @@
-"""运行回测。
-
-用法:
-    uv run python scripts/run_backtest.py --strategy sma_cross --market cn
-    uv run python scripts/run_backtest.py --strategy momentum --market us -p lookback=60 -p top_n=2
-策略名见 src/quant/strategies/baselines.py。结果写入 results/<run>/，
-并在 stdout 打印 metrics.json 内容（agent 只需读 stdout 或该 json）。
-"""
-
+"""Exploratory backtest; use run_parameter_scan.py for independent validation."""
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+from dataclasses import asdict
+from pathlib import Path
 
-import pandas as pd
-
-sys.stdout.reconfigure(encoding="utf-8")  # Windows GBK 控制台中文输出
+sys.stdout.reconfigure(encoding="utf-8")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from quant.backtest import engine, metrics, report
-from quant.data import storage
-from quant.data.universe import load_universe
+from quant.backtest.risk_overlay import RiskOverlayConfig, apply_risk_overlay
+from quant.backtest.study import sliced
+from quant.data.research import load_market_bars
 from quant.strategies import get_strategy, list_strategies
+from quant.workspace import WorkspaceConfig
 
 
-def load_close(market: str, symbols: list[str]) -> pd.DataFrame:
-    frames = {}
-    for s in symbols:
-        df = storage.load_daily(market, s)
-        if df is None or df.empty:
-            print(f"[warn] 缺数据: {market}/{s}，已跳过")
-            continue
-        frames[s] = df.set_index("date")["close"]
-    if not frames:
-        raise SystemExit(f"{market} 无任何数据，请先运行 scripts/update_data.py")
-    return pd.DataFrame(frames).sort_index()
-
-
-def parse_params(items: list[str]) -> dict:
-    out = {}
-    for it in items:
-        k, _, v = it.partition("=")
+def parse_params(items):
+    output = {}
+    for item in items:
+        key, sep, value = item.partition("=")
+        if not sep or not key or key in output:
+            raise ValueError(f"invalid/repeated parameter: {item}")
         try:
-            out[k] = int(v)
+            output[key] = int(value)
         except ValueError:
             try:
-                out[k] = float(v)
+                output[key] = float(value)
             except ValueError:
-                out[k] = v
-    return out
+                output[key] = value
+    return output
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--strategy", required=True, help=f"可选: {list_strategies()}")
-    ap.add_argument("--market", choices=["cn", "us"], required=True)
-    ap.add_argument("--start", default=None)
-    ap.add_argument("--end", default=None)
-    ap.add_argument("-p", "--param", action="append", default=[], help="策略参数 k=v，可多次")
-    args = ap.parse_args()
-
-    uni = load_universe()
-    if args.market == "cn":
-        symbols = uni["cn"]
-        bench_market, bench_symbol = "cn-index", uni["cn_index"][0]
-    else:
-        bench_symbol = "SPY"
-        symbols = [s for s in uni["us"] if s != bench_symbol]
-        bench_market = "us"
-
-    close = load_close(args.market, symbols)
-    if args.start:
-        close = close.loc[close.index >= pd.Timestamp(args.start)]
-    if args.end:
-        close = close.loc[close.index <= pd.Timestamp(args.end)]
-
-    bench_df = storage.load_daily(bench_market, bench_symbol)
-    bench_nav = None
-    if bench_df is not None and not bench_df.empty:
-        bench_nav = bench_df.set_index("date")["close"].reindex(close.index).ffill()
-
-    params = parse_params(args.param)
-    decision = get_strategy(args.strategy)(close, **params)
-    result = engine.run(close, decision, engine.MARKETS[args.market])
-    m = metrics.summarize(result.nav, result.returns, result.turnover, bench_nav)
-    out = report.save(args.strategy, args.market, params, result, m,
-                      bench_nav, benchmark_name=bench_symbol)
-
-    print(json.dumps({"run_dir": out.name, "strategy": args.strategy,
-                      "market": args.market, "params": params, **m},
-                     ensure_ascii=False, indent=2))
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--strategy", required=True, choices=list_strategies())
+    parser.add_argument("--market", required=True, choices=["cn", "us"])
+    parser.add_argument("--start")
+    parser.add_argument("--end")
+    parser.add_argument("--universe")
+    parser.add_argument("--membership-file")
+    parser.add_argument("--workspace", type=Path, help="versioned workspace YAML; paths are cwd-independent")
+    parser.add_argument("--execution-model", choices=["next_open_v1", "legacy_same_close"], default="next_open_v1")
+    parser.add_argument("--max-position-weight", type=float, default=1.0)
+    parser.add_argument("--max-gross-exposure", type=float, default=1.0)
+    parser.add_argument("--target-volatility", type=float)
+    parser.add_argument("--volatility-window", type=int, default=20)
+    parser.add_argument("--regime-window", type=int)
+    parser.add_argument("--risk-off-exposure", type=float, default=0.0)
+    parser.add_argument("-p", "--param", action="append", default=[])
+    args = parser.parse_args()
+    try:
+        if args.workspace:
+            workspace = WorkspaceConfig.load(args.workspace)
+            workspace.apply()
+            if args.membership_file:
+                args.membership_file = str(workspace.resolve_project_path(args.membership_file))
+        bars = load_market_bars(args.market, args.universe, args.membership_file)
+        index = bars.close.index
+        bars = sliced(bars, int(index.searchsorted(args.start)) if args.start else 0,
+                      int(index.searchsorted(args.end, side="right")) if args.end else len(index))
+        params = parse_params(args.param)
+        overlay = RiskOverlayConfig(max_position_weight=args.max_position_weight, max_gross_exposure=args.max_gross_exposure,
+                                    target_volatility=args.target_volatility, volatility_window=args.volatility_window,
+                                    regime_window=args.regime_window, risk_off_exposure=args.risk_off_exposure)
+        decision = apply_risk_overlay(bars.signal_close, get_strategy(args.strategy)(bars.signal_close, **params), overlay)
+        decision = decision.where(bars.eligible, 0.0)
+        result = engine.run(bars.close, decision, engine.MARKETS[args.market], open_prices=bars.open,
+                            execution_model=args.execution_model)
+        summary = metrics.summarize(result.nav, result.returns, result.turnover, bars.benchmark_close, result.weights,
+                                    benchmark_initial=float(bars.benchmark_open.iloc[0]) if bars.benchmark_open is not None else None)
+        summary.update(schema_version=2, artifact_type="exploratory_backtest", execution_model=result.execution_model,
+                       stale_valuation_days=result.stale_valuation_days, research_only=True)
+        out = report.save(args.strategy, args.market, params, result, summary, bars.benchmark_close, bars.benchmark_name,
+                          metadata={"universe": bars.universe["profile"], "risk_overlay": asdict(overlay),
+                                    "costs": asdict(engine.MARKETS[args.market])},
+                          benchmark_initial=float(bars.benchmark_open.iloc[0]) if bars.benchmark_open is not None else None)
+        print(json.dumps({"run_dir": str(out.resolve()), **summary}, ensure_ascii=False, indent=2, allow_nan=False))
+    except (ValueError, KeyError) as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":

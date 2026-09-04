@@ -10,14 +10,17 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 import time
 
 sys.stdout.reconfigure(encoding="utf-8")  # Windows GBK 控制台中文输出
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pandas as pd
 
 from quant.data import fetchers, storage
 from quant.data.universe import load_universe
+from quant.workspace import WorkspaceConfig
 
 DEFAULT_START = "2018-01-01"
 
@@ -40,15 +43,28 @@ def main() -> None:
     ap.add_argument("--market", choices=["all", "cn", "us"], default="all")
     ap.add_argument("--start", default=DEFAULT_START)
     ap.add_argument("--end", default=pd.Timestamp.today().strftime("%Y-%m-%d"))
+    ap.add_argument("--universe", help="股票池 profile；由 workspace 指向的 universe.yaml 校验")
+    ap.add_argument("--symbol", action="append", default=[], help="只更新股票池内指定代码，可多次")
+    ap.add_argument("--workspace", type=Path, help="versioned workspace YAML; paths are cwd-independent")
     args = ap.parse_args()
 
-    uni = load_universe()
+    if args.workspace:
+        WorkspaceConfig.load(args.workspace).apply()
+
+    uni = load_universe(args.universe)
     jobs: list[tuple[str, str, object]] = []
     if args.market in ("all", "cn"):
         jobs += [("cn", s, fetchers.fetch_cn_daily) for s in uni["cn"]]
         jobs += [("cn-index", s, fetchers.fetch_cn_index_daily) for s in uni["cn_index"]]
     if args.market in ("all", "us"):
         jobs += [("us", s, fetchers.fetch_us_daily) for s in uni["us"]]
+    if args.symbol:
+        requested = {symbol.upper() for symbol in args.symbol}
+        available = {symbol.upper() for _, symbol, _ in jobs}
+        unknown = requested - available
+        if unknown:
+            ap.error(f"指定代码不在 {uni['profile']} 股票池或所选市场中: {sorted(unknown)}")
+        jobs = [job for job in jobs if job[1].upper() in requested]
 
     failed = 0
     for market, symbol, fn in jobs:
