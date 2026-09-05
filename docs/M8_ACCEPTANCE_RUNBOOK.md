@@ -55,6 +55,18 @@ PYTHONPATH=../gpt_quant/src python -B -m pytest -q -p no:cacheprovider ../gpt_qu
 
 离线 adapter 测试已经完成；真实验收前必须先写入 provider、实际模型标识、预算和截止时间。禁止使用动态模型别名作为冻结版本。
 
+无网络预检命令（不会发送请求）：
+
+~~~bash
+cd /Users/brucehuang/Documents/gpt_quant
+PYTHONPATH=src .venv/bin/python -m gpt_quant.cli provider-preflight \
+  --endpoint https://provider.example \
+  --model fixed-model \
+  --api-key-env RESEARCH_PROVIDER_API_KEY
+~~~
+
+输出 READY 只表示 endpoint、model 和凭据配置存在，不表示 provider 质量验收通过；缺少凭据应输出 BLOCKED 且 network_called=false。
+
 操作顺序：
 
 1. 准备脱敏 SEC fixture 和人工标注结果；先运行无网络 fixture 回归。
