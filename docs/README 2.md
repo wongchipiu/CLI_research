@@ -4,7 +4,6 @@
 
 ## 从哪里开始
 
-- **查看本次 review、历史意见如何合并和大模型交易设计：**读 [统一复审与设计](LLM_TRADING_DESIGN.md)。当前先恢复 M8-S0R，历史 DONE 不等于当前两仓安全约束仍成立。
 - **第一次使用系统：**读 [实用指南](USER_GUIDE.md)，再按根目录 [README](../README.md) 运行命令。
 - **开始一个开发条目：**依次读 [需求](REQUIREMENTS.md)、[计划](PLAN.md) 和 [当前状态](STATUS.md)。
 - **继续 CLI_research × gpt_quant 整合：**再读 [整合计划](INTEGRATION_PLAN.md) 和相应的 [里程碑记录](milestones/)。
@@ -20,7 +19,6 @@
 | [STATUS.md](STATUS.md) | 已完成能力、当前环境注意事项、测试结果和技术债 | 每个开发条目完成后 |
 | [USER_GUIDE.md](USER_GUIDE.md) | 面向使用者的完整研究流程、命令和证据解释 | 可用命令或工作流变化时 |
 | [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md) | CLI_research 与 gpt_quant 的职责边界、契约和 M7 路线 | 两项目整合设计或 M7 范围变化时 |
-| [LLM_TRADING_DESIGN.md](LLM_TRADING_DESIGN.md) | 两仓复审结论、合并追溯、LLM 契约/实验/模拟设计和 M8 验收 | 跨仓设计、风险发现和后续验收条件变化时 |
 | [live_risk.md](live_risk.md) | IBKR Paper 日损熔断器的配置、预检、验收和部署手册 | 风控规则或部署方式变化时 |
 | [CASE_STUDY_PAPER_SIGNAL.md](CASE_STUDY_PAPER_SIGNAL.md) | 用合成案例解释模拟信号的重放保护与结论边界 | 模拟信号协议变化时 |
 

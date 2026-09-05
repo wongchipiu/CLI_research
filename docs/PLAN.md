@@ -1,5 +1,20 @@
 # 项目计划与 Token 预算策略
 
+> **2026-09-05 复审：下一条为 M8-S0R（合并后安全语义恢复）。** 当前 GPT 消费端已回退部分 M8-S1/S2 约束，历史“完成”不代表当前两仓整体验收通过。统一设计、review 证据、旧意见合并映射和验收标准见 [LLM_TRADING_DESIGN.md](LLM_TRADING_DESIGN.md)。下方 M0–M7 为历史建设记录。
+
+## 当前执行顺序（优先于历史排期）
+
+| 顺序 | 条目 | 当前状态与交付 |
+|---|---|---|
+| 1 | M8-S0R | NEXT/P0：恢复禁止自报准入、v4 内容身份/严格数值、缺价原子拒绝、消费端正式日历；补两仓反例测试 |
+| 2 | M8-S3a | NEXT：共享契约/日历包与版本锁定，干净安装和跨仓发布验收 |
+| 3 | M8-S3b / S3c | SEC v2 可用时间、修订、事实与 provider；订单/策略批准、风控上下文绑定、减仓语义；可独立开发 |
+| 4 | M8-S4a | 单 provider 受限抽取、原文引用、弃权、预算、超时与注入防护 |
+| 5 | M8-S4b | SEC 增强 Radar；价格/XBRL/LLM 对照、负对照、trial 账本、冻结终测 |
+| 6 | M8-S5a / S5b | 审批到本地 Paper 的完整执行链及恢复对账；至少 63 个真实交易会话与独立事件量验收 |
+
+首个研究 MVP 为美股、日频、长仓、SEC 财报事件。CLI 继续承担唯一正式量化评价；GPT 新增组合/策略模块保留为兼容基准。M6-S3 的 IBKR 账户止损守护独立验收；M7-S9 物理合仓、API/UI、新引擎及更多策略延后。完整依赖和完成条件以统一设计第 10 节为准，本轮只改计划、不修业务代码。
+
 > 配合 REQUIREMENTS.md 使用。每个 session 开工时：只说"做 M几-S几"，让 agent 读这两个文档即可，不要在对话里重述需求。
 
 ## 1. 里程碑拆分
@@ -84,12 +99,13 @@ Pro 的额度按 5 小时滚动窗口 + 每周上限计算。建议：
 - **S5 已完成（2026-08-30）：** 已实现固定美股自选池的量比/动量/收盘突破、数据过滤、确定性排名、版本化 JSON 和 `quant scan`；详见 [M7-S5 验收记录](milestones/m7-s5-us-daily-radar.md)。
 - **S6 已完成（2026-08-30）：** 已实现信号去重持久化、按 SPY 交易日成熟 1/3/5/10/20 日结果、描述性/可执行双口径、费用与基准超额、未成熟及缺失状态；详见 [M7-S6 验收记录](milestones/m7-s6-forward-outcome-tracking.md)。
 - **S7 已完成（2026-08-30）：** 已实现可重试的更新→质检→扫描→跟踪→报告批处理、同日幂等 job ID、逐阶段状态、失败恢复和 JSON/Markdown 汇总；详见 [M7-S7 验收记录](milestones/m7-s7-daily-radar-job.md)。
-- 后续为可选 M7-S8（真实模型只读研究接入）与 M7-S9（物理合仓/界面）；两者均需单独确认具体目标、服务凭据或合仓方式，不能默认接实盘券商。
+- M7-S8 的真实模型研究接入并入 M8-S4a，不再维护独立排期；M7-S9 物理合仓/界面延后。模型配置/预算在连接验收时落实；离线契约与测试可以先完成。
 - 两个仓库的未提交改动必须保留；合仓、联网数据验收、模拟运行与实盘接入均未在 S0 执行。
 
 ## 7. M8 下一代大模型研究系统（2026-09-01）
 
-- **S1 已完成：准入与模拟信号 Gate Hardening。** 已删除自报模拟天数/人工复核的准入路径；验证器在没有独立签名批准包前最高只返回 `PAPER_TRADING`；已实现内容寻址的 `paper_target_signal` v3、策略包/证据绑定、有限数校验和缺价原子拒绝。详见 [M8-S1 验收记录](milestones/m8-s1-gate-hardening.md)。
-- **S2 已完成：版本冻结的 NYSE/SSE/SZSE 交易日历。** 已精确锁定 `exchange_calendars` 4.13.2；美股采用 XNYS，中国 A 股采用显式 `XSHG+XSHE` 契约；v4 模拟信号和账户绑定 `calendar_id`，覆盖节假日、提前收市、午休和范围外 fail-closed。详见 [M8-S2 验收记录](milestones/m8-s2-pinned-exchange-calendars.md)。
-- S3（进行中）：已完成 gpt_quant 的 Point-in-Time SEC Evidence Store 与 CLI_research 的 SEC Evidence v1 校验命令；后续补充事实字段和正式 provider 适配。
-- S4（后续，需模型服务确认）：只读 Model Gateway 与 SEC 事件特征 challenger。
+- **S1 历史完成、当前 REGRESSED：** 历史实现过自报准入移除、信号内容身份、策略包绑定、有限数及缺价原子拒绝；当前 GPT 分支未保持这些约束，归 M8-S0R 恢复。原始 [M8-S1 验收记录](milestones/m8-s1-gate-hardening.md) 保留。
+- **S2 CLI 完成、GPT 消费端 REGRESSED：** CLI 仍冻结 `exchange_calendars==4.13.2` 和 v4 `calendar_id`；GPT 只检查前缀，执行仍是 weekday 日历，归 M8-S0R 恢复。原始 [M8-S2 验收记录](milestones/m8-s2-pinned-exchange-calendars.md) 保留。
+- **S3 PARTIAL：** SEC Evidence v1 离线存储/消费校验已实现；共享包、observed/reconstructed 时间、修订/事实与正式接入未完成，拆为 S3a/S3b；签名批准与风控上下文为 S3c。
+- **S4 PLANNED：** 拆为 S4a 真实模型抽取与 S4b 对照实验。已有 ResearchTask 只是字段契约，不等于完整研究工作流或证据验证。
+- **S5 PLANNED：** 新增端到端模拟链与前向验证。完成模块或增加模拟计日不能替代真实运行证据。

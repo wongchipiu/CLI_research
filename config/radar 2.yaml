@@ -1,0 +1,22 @@
+schema_version: 1
+artifact_type: daily_radar_config
+default_profile: momentum_volume
+
+tracking:
+  benchmark: SPY
+  horizons: [1, 3, 5, 10, 20]
+  buy_fee: 0.001
+  sell_fee: 0.001
+  delistings: {}
+
+profiles:
+  momentum_volume:
+    market: us
+    universe_profile: extended
+    exclude_symbols: [SPY]
+    min_history: 61
+    min_price: 5.0
+    min_average_dollar_volume_20: 10000000
+    min_volume_ratio_20: 1.5
+    min_ret_5d: 0.03
+    max_results: 20
