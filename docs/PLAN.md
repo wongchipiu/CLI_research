@@ -10,7 +10,7 @@
 | 2 | M8-S3a | NEXT：共享契约/日历包与版本锁定，干净安装和跨仓发布验收 |
 | 3 | M8-S3b / S3c | OFFLINE DONE：SEC v2、审批/风控上下文绑定；真实 provider、签发权限和券商连接待外部验收 |
 | 4 | M8-S4a | OFFLINE DONE：受限抽取、原文引用、弃权、预算、超时与注入防护；真实 provider 待接入 |
-| 5 | M8-S4b | SEC 增强 Radar；价格/XBRL/LLM 对照、负对照、trial 账本、冻结终测 |
+| 5 | M8-S4b | OFFLINE PARTIAL：已完成 trial 账本与冻结终测边界；SEC 增强 Radar、B0–B3 evaluator、负对照和统计终测仍待开发 |
 | 6 | M8-S5a / S5b | S5a OFFLINE DONE：审批到本地 Paper outbox/幂等恢复；S5b 仍需至少 63 个真实交易会话与独立事件量验收 |
 
 首个研究 MVP 为美股、日频、长仓、SEC 财报事件。CLI 继续承担唯一正式量化评价；GPT 新增组合/策略模块保留为兼容基准。M6-S3 的 IBKR 账户止损守护独立验收；M7-S9 物理合仓、API/UI、新引擎及更多策略延后。完整依赖和完成条件以统一设计第 10 节为准，本轮只改计划、不修业务代码。

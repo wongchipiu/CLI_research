@@ -194,7 +194,7 @@ PIT 检索无法消除模型预训练已经见过未来结果的风险。记录�
 | M8-S3b | OFFLINE DONE / P1，依赖 S3a | GPT SEC v2/事实/修订存储；CLI 校验消费 | observed 与 reconstructed 分开；迟到/修订/版本哈希/as-of 反例通过；真实 provider 待接入 | 完成 |
 | M8-S3c | OFFLINE DONE / P1，依赖 S3a | GPT RiskDecision、StrategyApproval、OrderApproval | 跨 intent/账户报告不可复用，过期/篡改阻断；签名上下文绑定；真实签发权限和券商减仓待验收 | 完成 |
 | M8-S4a | OFFLINE DONE / P1，依赖 S3b | GPT 受限特征抽取、引用/预算/超时/注入防护 | 引用可重定位、弃权和过期拒绝、预算/注入测试通过；真实 provider 与标注集待验收 | 完成 |
-| M8-S4b | PLANNED / P1，依赖 S4a | CLI 实验注册、B0–B3/负对照、trial 账本、统计终测 | 同口径对照、标签隔离、冻结模型/prompt、终测不重复使用、增量/成本/容量与置信区间全部报告；不达标可正确否决 | 5–8 日 |
+| M8-S4b | OFFLINE PARTIAL / P1，依赖 S4a | CLI 实验注册已增加 manifest/trial ledger；B0–B3/负对照/统计终测仍待开发 | trial 预算、冻结和 final test 单次消费已可验收；完整对照、成本/容量和置信区间仍需实现 | 5–8 日 |
 | M8-S5a | OFFLINE DONE / P1，依赖 S3c 及合格研究证据 | GPT Paper 执行桥、审批/outbox 对接 | 审批后执行、缺价/重放/撤销拒绝、JSONL 重启幂等；部分成交、券商断线和真实对账待验收 | 完成 |
 | M8-S5b | PLANNED，依赖 S5a | shadow + 本地 paper；IBKR Paper 连接为独立适配验收 | 至少 63 个真实会话 + 独立事件量门槛 + 每日对账；模型漂移触发新版本评估 | 日历时间约一季度或更长 |
 | M6-S3 | PARTIAL，独立轨道 | CLI IBKR 账户级止损守护连续 Paper 验收 | 既有仿真不能替代真实 Paper 连接、夜间恢复、通知和账户身份核验 | 独立排期 |
