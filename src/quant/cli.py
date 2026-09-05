@@ -14,6 +14,7 @@ from quant.adapters import IntegrationError
 from quant.contracts import ContractError, load_json_object, validate_sec_evidence, validate_sec_evidence_v2
 from quant.data.universe import load_universe
 from quant.jobs import DailyJobRequest, run_daily_job
+from quant.llm_experiments import ExperimentSeries, build_experiment_report, write_experiment_report
 from quant.scanner import (
     RadarConfigError,
     RadarError,
@@ -89,6 +90,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     sec.add_argument("--as-of", help="optional ISO-8601 historical availability cutoff")
     sec.add_argument("--workspace", type=Path, default=DEFAULT_CONFIG)
     sec.add_argument("--mode", choices=("observed", "historical_reconstructed"))
+    experiment = subparsers.add_parser("experiment-report", help="build a deterministic B0-B3 experiment report")
+    experiment.add_argument("--experiment-id", required=True)
+    experiment.add_argument("--series", action="append", required=True, help="B0=returns.json; repeat for B0/B1/B2/B3")
+    experiment.add_argument("--output", type=Path, required=True)
+    experiment.add_argument("--min-samples", type=int, default=30)
+    experiment.add_argument("--bootstrap-samples", type=int, default=2000)
+    experiment.add_argument("--seed", type=int, default=0)
+    experiment.add_argument("--workspace", type=Path, default=DEFAULT_CONFIG)
     daily.add_argument("--as-of", help="optional radar signal date and update end date")
     daily.add_argument(
         "--skip-update",
@@ -99,6 +108,24 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         config = WorkspaceConfig.load(args.workspace)
+        if args.command == "experiment-report":
+            series: dict[str, ExperimentSeries] = {}
+            for item in args.series:
+                try:
+                    name, path_text = item.split("=", 1)
+                    payload = json.loads(Path(path_text).read_text(encoding="utf-8"))
+                    returns = payload["net_returns"] if isinstance(payload, dict) else payload
+                    cost = float(payload.get("model_cost", 0.0)) if isinstance(payload, dict) else 0.0
+                    series[name] = ExperimentSeries(name, tuple(float(value) for value in returns), cost)
+                except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+                    raise ContractError(f"invalid experiment series {item}: {exc}") from exc
+            report = build_experiment_report(
+                args.experiment_id, series, min_samples=args.min_samples,
+                bootstrap_samples=args.bootstrap_samples, seed=args.seed,
+            )
+            json_path, markdown_path = write_experiment_report(report, args.output)
+            print(json.dumps({"status": report.status, "json": str(json_path), "markdown": str(markdown_path)}, indent=2))
+            return 0 if report.status == "PASS" else 2
         if args.command == "validate-sec-evidence":
             as_of = datetime.fromisoformat(args.as_of) if args.as_of else None
             raw_payload = load_json_object(args.path)

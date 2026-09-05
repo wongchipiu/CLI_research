@@ -43,10 +43,11 @@ PYTHONPATH=../gpt_quant/src python -B -m pytest -q -p no:cacheprovider ../gpt_qu
 操作顺序：
 
 1. 固定 quant_contracts 版本、exchange-calendars==4.13.2 和 lockfile；记录版本及 SHA256。
-2. 在临时目录创建全新虚拟环境，只安装两个 wheel，不设置 PYTHONPATH。
-3. 用 golden fixtures 分别测试：合法 v4 信号、错误日历、旧 schema、篡改 hash、NaN/Inf/bool、缺价、未来可用时间和非法 JSON 类型。
-4. 从仓库根目录、临时目录和任意 cwd 分别运行同一条消费命令，比较 canonical 输出和拒绝原因集合。
-5. 删除临时环境后重复安装，确认结果不依赖源码目录。
+2. 在当前受限环境可用 `cd ../gpt_quant/packages/quant_contracts && python build_wheel.py` 生成共享 wheel；在完整开发环境也可用标准 PEP 517 builder 构建。
+3. 在临时目录创建全新虚拟环境，只安装两个 wheel，不设置 PYTHONPATH。
+4. 用 golden fixtures 分别测试：合法 v4 信号、错误日历、旧 schema、篡改 hash、NaN/Inf/bool、缺价、未来可用时间和非法 JSON 类型。
+5. 从仓库根目录、临时目录和任意 cwd 分别运行同一条消费命令，比较 canonical 输出和拒绝原因集合。
+6. 删除临时环境后重复安装，确认结果不依赖源码目录。
 
 通过证据至少包括：两个 wheel、安装清单、fixture hash、每个 fixture 的接受/拒绝结果、两仓 SHA 和测试报告。任何一项仍需 PYTHONPATH 才能运行时，S3a 不通过。
 

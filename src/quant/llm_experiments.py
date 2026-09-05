@@ -7,6 +7,7 @@ import hashlib
 import json
 import random
 from statistics import mean
+from pathlib import Path
 from typing import Mapping, Sequence
 
 
@@ -45,6 +46,58 @@ class ComparisonReport:
             "mean_increment": self.mean_increment, "lower_95": self.lower_95, "upper_95": self.upper_95,
             "cost_adjusted_increment": self.cost_adjusted_increment, "status": self.status, "reason": self.reason,
         }
+
+
+@dataclass(frozen=True)
+class ExperimentReport:
+    experiment_id: str
+    comparisons: tuple[ComparisonReport, ...]
+    status: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": 1,
+            "artifact_type": "llm_experiment_report",
+            "experiment_id": self.experiment_id,
+            "status": self.status,
+            "comparisons": [item.to_dict() for item in self.comparisons],
+        }
+
+    def to_markdown(self) -> str:
+        lines = [f"# LLM experiment {self.experiment_id}", "", f"Status: **{self.status}**", "", "| Compare | N | Increment | 95% interval | Cost-adjusted | Status |", "|---|---:|---:|---:|---:|---|"]
+        for item in self.comparisons:
+            lines.append(f"| {item.challenger} - {item.baseline} | {item.sample_count} | {item.mean_increment:.6f} | [{item.lower_95:.6f}, {item.upper_95:.6f}] | {item.cost_adjusted_increment:.6f} | {item.status} |")
+        return "\n".join(lines) + "\n"
+
+
+def build_experiment_report(
+    experiment_id: str,
+    series: Mapping[str, ExperimentSeries],
+    *,
+    min_samples: int = 30,
+    bootstrap_samples: int = 2000,
+    seed: int = 0,
+) -> ExperimentReport:
+    required = ("B0", "B1", "B2", "B3")
+    if any(name not in series for name in required):
+        raise ValueError("B0, B1, B2 and B3 are required")
+    comparisons = (
+        compare_series(series["B0"], series["B1"], min_samples=min_samples, bootstrap_samples=bootstrap_samples, seed=seed),
+        compare_series(series["B1"], series["B2"], min_samples=min_samples, bootstrap_samples=bootstrap_samples, seed=seed),
+        compare_series(series["B2"], series["B3"], min_samples=min_samples, bootstrap_samples=bootstrap_samples, seed=seed),
+    )
+    status = "PASS" if all(item.status == "PASS" for item in comparisons) else "INCONCLUSIVE"
+    return ExperimentReport(experiment_id, comparisons, status)
+
+
+def write_experiment_report(report: ExperimentReport, output: str | Path) -> tuple[Path, Path]:
+    destination = Path(output)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    json_path = destination.with_suffix(".json")
+    markdown_path = destination.with_suffix(".md")
+    json_path.write_text(json.dumps(report.to_dict(), ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(report.to_markdown(), encoding="utf-8")
+    return json_path, markdown_path
 
 
 def compare_series(
