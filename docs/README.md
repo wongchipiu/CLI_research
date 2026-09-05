@@ -9,6 +9,7 @@
 - **开始一个开发条目：**依次读 [需求](REQUIREMENTS.md)、[计划](PLAN.md) 和 [当前状态](STATUS.md)。
 - **继续 CLI_research × gpt_quant 整合：**再读 [整合计划](INTEGRATION_PLAN.md) 和相应的 [里程碑记录](milestones/)。
 - **配置 IBKR Paper 风控：**读 [日损熔断器运行手册](live_risk.md)；它与研究回测流程相互隔离。
+- **执行 M8 未验收项：**读 [M8 未验收项操作手册](M8_ACCEPTANCE_RUNBOOK.md)；它集中说明 contracts、真实模型、B0–B3、Paper 前向和 IBKR Paper 的验收顺序与证据要求。
 - **查以前研究过什么：**到 [research/](research/)；查自动生成的月度策略汇总到 [monthly_review/](monthly_review/)。
 
 ## 每份文档做什么
