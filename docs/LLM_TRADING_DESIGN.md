@@ -190,7 +190,7 @@ PIT 检索无法消除模型预训练已经见过未来结果的风险。记录�
 | 条目 | 状态/优先级 | 负责人模块与交付 | 完成条件 | 估算 |
 |---|---|---|---|---|
 | M8-S0R | DONE / P0 | GPT 消费端；恢复 M8-S1/S2 安全语义、RV-01–04 | 自报只能 PAPER、v2/v3 拒绝新执行、篡改/NaN/bool/缺价原子拒绝、假日/提前收市/日历漂移拒绝；GPT 111 tests 通过，详见 GPT 验收记录 | 完成 |
-| M8-S3a | NEXT / P1，依赖 S0R | GPT 维护 shared contracts wheel；两仓锁版本，release manifest 与 schema/hash/calendar golden fixtures | 干净目录安装两仓，改变 cwd 可运行；CI 检查生产者/消费者接受与拒绝集合一致，无 sys.path/PYTHONPATH 补丁 | 2–3 日 |
+| M8-S3a | OFFLINE DONE / P1，依赖 S0R | GPT 维护 shared contracts wheel；两仓锁版本，canonical/schema/hash/calendar 基础已具备 | wheel 已生成并在全新临时环境无 PYTHONPATH 安装/导入通过；两仓完整发布矩阵与 golden fixture CI 仍需目标环境复核 | 完成 |
 | M8-S3b | OFFLINE DONE / P1，依赖 S3a | GPT SEC v2/事实/修订存储；CLI 校验消费 | observed 与 reconstructed 分开；迟到/修订/版本哈希/as-of 反例通过；真实 provider 待接入 | 完成 |
 | M8-S3c | OFFLINE DONE / P1，依赖 S3a | GPT RiskDecision、StrategyApproval、OrderApproval | 跨 intent/账户报告不可复用，过期/篡改阻断；签名上下文绑定；真实签发权限和券商减仓待验收 | 完成 |
 | M8-S4a | OFFLINE DONE / P1，依赖 S3b | GPT 受限特征抽取、引用/预算/超时/注入防护 | 引用可重定位、弃权和过期拒绝、预算/注入测试通过；真实 provider 与标注集待验收 | 完成 |

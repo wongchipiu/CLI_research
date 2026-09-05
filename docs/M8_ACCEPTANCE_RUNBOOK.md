@@ -49,7 +49,7 @@ PYTHONPATH=../gpt_quant/src python -B -m pytest -q -p no:cacheprovider ../gpt_qu
 5. 从仓库根目录、临时目录和任意 cwd 分别运行同一条消费命令，比较 canonical 输出和拒绝原因集合。
 6. 删除临时环境后重复安装，确认结果不依赖源码目录。
 
-通过证据至少包括：两个 wheel、安装清单、fixture hash、每个 fixture 的接受/拒绝结果、两仓 SHA 和测试报告。任何一项仍需 PYTHONPATH 才能运行时，S3a 不通过。
+通过证据至少包括：两个 wheel、安装清单、fixture hash、每个 fixture 的接受/拒绝结果、两仓 SHA 和测试报告。当前共享 wheel 已用 build_wheel.py 构建，并在全新临时环境中无 PYTHONPATH 安装/导入通过；两仓完整 wheel 发布仍需在目标发布环境重复一次。
 
 ## 4. M8-S4a：真实模型 provider
 

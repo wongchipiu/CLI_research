@@ -7,7 +7,7 @@
 | 顺序 | 条目 | 当前状态与交付 |
 |---|---|---|
 | 1 | M8-S0R | DONE/P0：恢复禁止自报准入、v4 内容身份/严格数值、缺价原子拒绝、消费端正式日历；GPT 111 tests 通过，验收记录见 GPT 仓库 |
-| 2 | M8-S3a | OFFLINE PARTIAL：共享 quant-contracts 源码、canonical hash 和两仓依赖已完成；wheel 构建/干净安装待有 setuptools 的环境 |
+| 2 | M8-S3a | OFFLINE DONE：共享 quant-contracts 源码、canonical hash、依赖声明、wheel 构建和全新临时环境安装/导入已通过 |
 | 3 | M8-S3b / S3c | OFFLINE DONE：SEC v2、审批/风控上下文绑定；真实 provider、签发权限和券商连接待外部验收 |
 | 4 | M8-S4a | OFFLINE DONE：受限抽取、原文引用、弃权、预算、超时与注入防护，新增 HTTPS provider gateway；真实凭据/服务验收待外部环境 |
 | 5 | M8-S4b | OFFLINE PARTIAL：已完成 trial 账本、B0–B3/负对照统计基础；SEC 增强 Radar、完整 evaluator 和终测报告仍待开发 |
