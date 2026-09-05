@@ -98,6 +98,52 @@ def validate_sec_evidence(payload: dict, *, as_of: datetime | None = None) -> di
     return payload
 
 
+def validate_sec_evidence_v2(payload: dict, *, as_of: datetime | None = None, mode: str | None = None) -> dict:
+    """Validate the shared SEC v2 point-in-time document contract."""
+    _require_envelope(payload, "sec_evidence", 2)
+    required = (
+        "document_version_id", "evidence_id", "accession", "issuer_cik", "form_type",
+        "accepted_at", "first_received_at", "validated_at", "available_at", "period_end",
+        "source_url", "raw_bytes_sha256", "normalized_text_sha256", "content", "parser_version",
+        "availability_mode",
+    )
+    for key in required:
+        if not isinstance(payload.get(key), str) or not payload[key]:
+            raise ContractError(f"sec_evidence v2 {key} must be a non-empty string")
+    if payload["evidence_id"] != f"{payload['issuer_cik']}:{payload['accession']}:{payload['document_version_id']}" or not payload["issuer_cik"].isdigit():
+        raise ContractError("sec_evidence v2 document identity is invalid")
+    for key in ("raw_bytes_sha256", "normalized_text_sha256"):
+        value = payload[key]
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            raise ContractError(f"sec_evidence v2 {key} is not a SHA-256 digest")
+    if hashlib.sha256(payload["content"].encode("utf-8")).hexdigest() != payload["normalized_text_sha256"]:
+        raise ContractError("sec_evidence v2 normalized content hash does not match")
+    if payload["availability_mode"] not in {"observed", "historical_reconstructed"}:
+        raise ContractError("sec_evidence v2 availability_mode is invalid")
+    timestamps = {}
+    try:
+        for key in ("accepted_at", "first_received_at", "validated_at", "available_at"):
+            timestamps[key] = datetime.fromisoformat(payload[key].replace("Z", "+00:00"))
+        if payload.get("published_at"):
+            timestamps["published_at"] = datetime.fromisoformat(payload["published_at"].replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ContractError("sec_evidence v2 timestamps must be ISO-8601") from exc
+    if any(value.tzinfo is None or value.utcoffset() is None for value in timestamps.values()):
+        raise ContractError("sec_evidence v2 timestamps must include a UTC offset")
+    if payload["availability_mode"] == "observed" and timestamps["available_at"] < max(
+        timestamps["accepted_at"], timestamps["first_received_at"], timestamps["validated_at"]
+    ):
+        raise ContractError("observed available_at precedes reliable processing")
+    if mode is not None and payload["availability_mode"] != mode:
+        raise ContractError("SEC evidence mode does not match the requested mode")
+    if as_of is not None:
+        if as_of.tzinfo is None or as_of.utcoffset() is None:
+            raise ContractError("sec_evidence v2 as_of must include a UTC offset")
+        if timestamps["available_at"] > as_of:
+            raise ContractError("sec_evidence v2 is not available at the requested as_of")
+    return payload
+
+
 def validate_daily_radar_scan(payload: dict) -> dict:
     _require_envelope(payload, "daily_radar_scan", 1)
     if payload.get("market") != "us":

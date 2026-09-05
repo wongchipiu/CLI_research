@@ -124,7 +124,15 @@ class TwsBroker:
 
     def cancel_all_orders(self) -> None:
         self._require_connection()
-        self._app.reqGlobalCancel()
+        try:
+            self._app.reqGlobalCancel()
+        except TypeError:
+            try:
+                from ibapi.order_cancel import OrderCancel
+                request = OrderCancel()
+            except (ImportError, AttributeError):
+                request = object()
+            self._app.reqGlobalCancel(request)
 
     def pop_errors(self) -> list[tuple[int, int, str]]:
         with self._error_lock:
@@ -335,7 +343,13 @@ class TwsBroker:
             def connectionClosed(self):
                 owner._server_connected = False
 
-            def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
+            def error(self, reqId, *args):
+                if len(args) == 2:
+                    errorCode, errorString = args
+                elif len(args) >= 3:
+                    _, errorCode, errorString = args[:3]
+                else:
+                    return
                 with owner._error_lock:
                     owner.errors.append((int(reqId), int(errorCode), str(errorString)))
                 if errorCode in {1100, 1101, 1300}:

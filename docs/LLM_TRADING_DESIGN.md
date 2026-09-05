@@ -1,6 +1,6 @@
 # CLI_research × gpt_quant：研发复审与大模型交易设计
 
-更新：2026-09-05。本文是两仓下一阶段的统一设计基线；排期入口为 [PLAN](PLAN.md) 和 [GPT 开发计划](../../gpt_quant/docs/development_plan.md)。历史记录保留，不把当时完成当作当前仍有效。本轮只更新文档；以下缺陷尚未修复。
+更新：2026-09-06。本文是两仓下一阶段的统一设计基线；排期入口为 [PLAN](PLAN.md) 和 [GPT 开发计划](../../gpt_quant/docs/development_plan.md)。历史记录保留，不把当时完成当作当前仍有效。M8-S0R 的离线安全恢复已完成，后续共享契约发布仍未完成。
 
 ## 1. Review 结论
 
@@ -189,18 +189,18 @@ PIT 检索无法消除模型预训练已经见过未来结果的风险。记录�
 
 | 条目 | 状态/优先级 | 负责人模块与交付 | 完成条件 | 估算 |
 |---|---|---|---|---|
-| M8-S0R | NEXT / P0 | 两仓；恢复 M8-S1/S2 安全语义、RV-01–04；修正安全断言相反的旧测试 | 自报只能 PAPER、v2/v3 拒绝新执行、篡改/NaN/bool/缺价原子拒绝、假日/提前收市/日历漂移拒绝；两仓真实源码及 wheel 合约测试通过 | 3–5 日 |
+| M8-S0R | DONE / P0 | GPT 消费端；恢复 M8-S1/S2 安全语义、RV-01–04 | 自报只能 PAPER、v2/v3 拒绝新执行、篡改/NaN/bool/缺价原子拒绝、假日/提前收市/日历漂移拒绝；GPT 111 tests 通过，详见 GPT 验收记录 | 完成 |
 | M8-S3a | NEXT / P1，依赖 S0R | GPT 维护 shared contracts wheel；两仓锁版本，release manifest 与 schema/hash/calendar golden fixtures | 干净目录安装两仓，改变 cwd 可运行；CI 检查生产者/消费者接受与拒绝集合一致，无 sys.path/PYTHONPATH 补丁 | 2–3 日 |
-| M8-S3b | PARTIAL / P1，依赖 S3a | GPT SEC v2/事实/修订/抓取器；CLI 校验消费 | observed 与 reconstructed 分开；迟到/修订/附件/数值单位/as-of 反例通过；可重试抓取及来源时戳留存 | 3–5 日 |
-| M8-S3c | PLANNED / P1，依赖 S3a，可与 S3b 并行开发 | GPT RiskDecision、StrategyApproval、OrderApproval；RV-05/06 | 跨订单/账户报告不可复用，撤销/过期/状态变化阻断；真实减仓通过、超卖拒绝；签发权限与模型进程分离 | 3–5 日 |
-| M8-S4a | PLANNED / P1，依赖 S3b | GPT 首个 Gateway、LLMFeature、引用/预算/超时/注入防护 | 标注集质量及覆盖率验收、无凭据泄漏；迟到/无效特征不发布；真实 provider 验收与离线 fixture 分开 | 3–5 日 |
+| M8-S3b | OFFLINE DONE / P1，依赖 S3a | GPT SEC v2/事实/修订存储；CLI 校验消费 | observed 与 reconstructed 分开；迟到/修订/版本哈希/as-of 反例通过；真实 provider 待接入 | 完成 |
+| M8-S3c | OFFLINE DONE / P1，依赖 S3a | GPT RiskDecision、StrategyApproval、OrderApproval | 跨 intent/账户报告不可复用，过期/篡改阻断；签名上下文绑定；真实签发权限和券商减仓待验收 | 完成 |
+| M8-S4a | OFFLINE DONE / P1，依赖 S3b | GPT 受限特征抽取、引用/预算/超时/注入防护 | 引用可重定位、弃权和过期拒绝、预算/注入测试通过；真实 provider 与标注集待验收 | 完成 |
 | M8-S4b | PLANNED / P1，依赖 S4a | CLI 实验注册、B0–B3/负对照、trial 账本、统计终测 | 同口径对照、标签隔离、冻结模型/prompt、终测不重复使用、增量/成本/容量与置信区间全部报告；不达标可正确否决 | 5–8 日 |
-| M8-S5a | PLANNED / P1，依赖 S3c 及 S4b 通过 | GPT 账本/状态机/审批/outbox 对接；CLI paper 信号 | 覆盖缺价、重放、撤销、并发资金、部分成交、断线和重启；端到端只用同一套订单风控 | 3–5 日 |
+| M8-S5a | OFFLINE DONE / P1，依赖 S3c 及合格研究证据 | GPT Paper 执行桥、审批/outbox 对接 | 审批后执行、缺价/重放/撤销拒绝、JSONL 重启幂等；部分成交、券商断线和真实对账待验收 | 完成 |
 | M8-S5b | PLANNED，依赖 S5a | shadow + 本地 paper；IBKR Paper 连接为独立适配验收 | 至少 63 个真实会话 + 独立事件量门槛 + 每日对账；模型漂移触发新版本评估 | 日历时间约一季度或更长 |
 | M6-S3 | PARTIAL，独立轨道 | CLI IBKR 账户级止损守护连续 Paper 验收 | 既有仿真不能替代真实 Paper 连接、夜间恢复、通知和账户身份核验 | 独立排期 |
 | M7-S9 / API/UI/新引擎/更多策略 | DEFERRED | 根据前向结果决定物理合仓和产品化 | 存在已验证用户需求与量化价值后再立项；F-TASK WIP 可先独立保全/收尾 | 不占关键路径 |
 
-下一次具体开工条目是 **M8-S0R**。先恢复两仓共享的安全契约与反例，再接真实模型；本次 plan review 并未实施这些修复。F-ORDER/F-RISK/F-APPROVAL/F-KILL 对应 S3c/S5a，F-MODEL 对应 S4a，F-EXP/F-REPORT 对应 S4b；已有配置/策略模块只保留兼容，不再开启第二套正式 evaluator。
+下一次具体开工条目是 **M8-S3a**。M8-S0R 已恢复现有边界内的安全语义；先完成共享契约 wheel、固定日历依赖和干净安装回归，再接真实模型。F-ORDER/F-RISK/F-APPROVAL/F-KILL 对应 S3c/S5a，F-MODEL 对应 S4a，F-EXP/F-REPORT 对应 S4b；已有配置/策略模块只保留兼容，不再开启第二套正式 evaluator。
 
 ## 11. 验收记录模板
 
