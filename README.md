@@ -82,6 +82,20 @@ cd /Users/brucehuang/Documents/gpt_quant
   --walk-forward
 ```
 
+冻结 M8-S4b 实验 manifest 后，可用统一 evaluator 生成 JSON/Markdown 报告；`final_test` 必须绑定 JSONL ledger，且同一实验只能消费一次：
+
+```bash
+.venv/bin/quant experiment-evaluate \
+  --manifest path/to/llm_experiment_manifest.json \
+  --series B0=path/to/B0.json --series B1=path/to/B1.json \
+  --series B2=path/to/B2.json --series B3=path/to/B3.json \
+  --series N1=path/to/N1.json --series N2=path/to/N2.json \
+  --output results/llm_experiment/evaluation \
+  --phase final_test --ledger var/studies/llm_experiment.jsonl
+```
+
+报告会检查覆盖率、弃权率、回撤、换手、容量、成本压力和负对照；任何门槛不足均返回 `INCONCLUSIVE`，不代表策略通过。
+
 正式工作流会按原规则一次性消费最终测试；首次使用前先阅读 [M7-S4 说明](docs/milestones/m7-s4-unified-cli-and-contracts.md)。相对实验路径固定解析到 `var/studies/`，从其他 cwd 启动也仍写入本项目配置的 `results/`。
 
 `run_backtest.py` 不再使用 `--train-ratio`/`--split-date` 做正式验证，请迁移到 `run_parameter_scan.py`。旧同日收盘行为需显式传 `--execution-model legacy_same_close`，其结果不能用于新版准入。

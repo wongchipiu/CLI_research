@@ -15,6 +15,7 @@ from quant.contracts import ContractError, load_json_object, validate_sec_eviden
 from quant.data.universe import load_universe
 from quant.jobs import DailyJobRequest, run_daily_job
 from quant.llm_experiments import ExperimentSeries, build_experiment_report, write_experiment_report
+from quant.llm_experiments import ExperimentLedger, LLMExperimentManifest, evaluate_experiment
 from quant.scanner import (
     RadarConfigError,
     RadarError,
@@ -98,6 +99,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     experiment.add_argument("--bootstrap-samples", type=int, default=2000)
     experiment.add_argument("--seed", type=int, default=0)
     experiment.add_argument("--workspace", type=Path, default=DEFAULT_CONFIG)
+    evaluation = subparsers.add_parser("experiment-evaluate", help="evaluate a frozen B0-B3/N1-N2 experiment")
+    evaluation.add_argument("--manifest", type=Path, required=True)
+    evaluation.add_argument("--series", action="append", required=True, help="B0=returns.json; repeat for B0/B1/B2/B3/N1/N2")
+    evaluation.add_argument("--output", type=Path, required=True)
+    evaluation.add_argument("--phase", choices=("development", "final_test"), default="development")
+    evaluation.add_argument("--ledger", type=Path)
+    evaluation.add_argument("--workspace", type=Path, default=DEFAULT_CONFIG)
     daily.add_argument("--as-of", help="optional radar signal date and update end date")
     daily.add_argument(
         "--skip-update",
@@ -126,6 +134,44 @@ def main(argv: Sequence[str] | None = None) -> int:
             json_path, markdown_path = write_experiment_report(report, args.output)
             print(json.dumps({"status": report.status, "json": str(json_path), "markdown": str(markdown_path)}, indent=2))
             return 0 if report.status == "PASS" else 2
+        if args.command == "experiment-evaluate":
+            manifest = LLMExperimentManifest.from_payload(load_json_object(args.manifest))
+            series: dict[str, ExperimentSeries] = {}
+            for item in args.series:
+                try:
+                    name, path_text = item.split("=", 1)
+                    payload = load_json_object(path_text)
+                    returns = payload["net_returns"]
+                    if not isinstance(returns, list):
+                        raise ValueError("net_returns must be a list")
+                    series[name] = ExperimentSeries(
+                        name,
+                        tuple(returns),
+                        payload.get("model_cost", 0.0),
+                        payload.get("coverage", 1.0),
+                        payload.get("abstention_rate", 0.0),
+                        payload.get("max_drawdown", 0.0),
+                        payload.get("turnover", 0.0),
+                        payload.get("capacity_notional", 0.0),
+                    )
+                except (ValueError, KeyError, TypeError) as exc:
+                    raise ContractError(f"invalid experiment series {item}: {exc}") from exc
+            ledger = ExperimentLedger(args.ledger) if args.ledger else None
+            if args.phase == "final_test":
+                if ledger is None:
+                    raise ContractError("final_test requires --ledger")
+                ledger.register(manifest)
+                if not ledger.frozen:
+                    ledger.freeze()
+            evaluation_report = evaluate_experiment(manifest, series, phase=args.phase, ledger=ledger)
+            destination = config.resolve_project_path(args.output)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            json_path = destination.with_suffix(".json")
+            markdown_path = destination.with_suffix(".md")
+            json_path.write_text(json.dumps(evaluation_report.to_dict(), ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            markdown_path.write_text(evaluation_report.to_markdown(), encoding="utf-8")
+            print(json.dumps({"status": evaluation_report.status, "json": str(json_path), "markdown": str(markdown_path)}, ensure_ascii=False, indent=2))
+            return 0 if evaluation_report.status == "PASS" else 2
         if args.command == "validate-sec-evidence":
             as_of = datetime.fromisoformat(args.as_of) if args.as_of else None
             raw_payload = load_json_object(args.path)

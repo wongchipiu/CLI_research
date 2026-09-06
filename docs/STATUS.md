@@ -1,12 +1,13 @@
 # 项目进度
 
-## 2026-09-05 当前状态复审（优先读本节）
+## 2026-09-06 当前状态复审（优先读本节）
 
-- 基线：CLI `master@3b2cd59`；GPT `main@f7ea460` 加原有后台任务 WIP。分支名沿用用户此前“CLI 保留 master”的决定。本轮未重新核验远端。
-- 本轮离线验证：CLI Git 跟踪测试 **122 passed**；GPT 工作区 **111 tests OK**（包含尚未提交任务模块）。CLI 的未跟踪 ` 2` 副本保留，未纳入此测试范围。
-- **跨仓安全状态为 REGRESSED，不能按历史 M8-S1/S2 结论准入。** GPT 仍接受自报天数/复核升为 LIVE_READY、旧信号/NaN/bool 权重、篡改后的原 ID；缺价仍消费信号，实际执行未使用正式假日日历。合成反例已复现；R4 工具仍硬锁。
+- 基线：CLI `master@c8b4f4d`；GPT `main@0050d0d`。分支名沿用用户此前“CLI 保留 master”的决定；本轮未联网核验远端。
+- 本轮离线验证：CLI 正式测试集 **130 passed**；GPT **121 tests OK**。CLI 中带 ` 2.py` 的历史副本未纳入正式测试集，作为遗留文件保留。
+- M8-S4b 已补齐 evaluator 基线：版本化 manifest、确定性 experiment ID、覆盖率/弃权率/回撤/换手/容量门槛、成本压力、N1/N2 负对照、报告和 final-test 单次消费；仍缺 SEC 增强 Radar、真实 LLM 特征和终测数据。
+- **M8-S0R 安全恢复已复验通过。** GPT 研究验证最高只能返回 `PAPER_TRADING`；v4 信号重算 canonical 身份、绑定策略/日历、拒绝有限数和缺价；纸面执行使用正式交易日历。新增审计还修复了 JSON `bool`/字符串数值和直接下单 `NaN/Inf` 价格路径；R4 工具仍硬锁。
 - SEC Evidence v1 为离线原型：两仓按 filed_at 查询，没有区分系统实际收到时间与历史重建；模型/事实抽取、签名策略批准与完整模拟链未接通。
-- 更新交付：[统一复审与大模型交易设计](LLM_TRADING_DESIGN.md)、[当前计划](PLAN.md) 和 [GPT 计划](../../gpt_quant/docs/development_plan.md)。下一条 **M8-S0R**，本轮未改业务代码。
+- 更新交付：[统一复审与大模型交易设计](LLM_TRADING_DESIGN.md)、[当前计划](PLAN.md) 和 [GPT 计划](../../gpt_quant/docs/development_plan.md)。当前离线队列为 M8-S4b；真实 provider、终测与 Paper 前向仍未验收。
 - 以下日期段落是当时记录，其中 Windows 环境、旧测试数、旧准入状态不能当作当前事实；本轮保留历史而不改写验收结果。
 
 > 每个 session 结束时更新本文件；新 session 开工先读这里。

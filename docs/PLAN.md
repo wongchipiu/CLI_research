@@ -1,16 +1,16 @@
 # 项目计划与 Token 预算策略
 
-> **2026-09-06 更新：M8-S0R 已完成。** 已恢复 GPT 消费端的 PAPER-only 准入、v4 内容身份、有限数/缺价原子拒绝和正式交易日历；下一条为 M8-S3a（共享 contracts wheel 与干净安装验收）。统一设计、review 证据、旧意见合并映射和验收标准见 [LLM_TRADING_DESIGN.md](LLM_TRADING_DESIGN.md)。
+> **2026-09-06 更新：M8-S0R 与 M8-S3a 已完成离线交付。** 已恢复 GPT 消费端的 PAPER-only 准入、v4 内容身份、有限数/缺价原子拒绝和正式交易日历，并完成共享 contracts 的本地 wheel/安装验证；下一条为 M8-S4b（完整实验 evaluator）。统一设计、review 证据、旧意见合并映射和验收标准见 [LLM_TRADING_DESIGN.md](LLM_TRADING_DESIGN.md)。
 
 ## 当前执行顺序（优先于历史排期）
 
 | 顺序 | 条目 | 当前状态与交付 |
 |---|---|---|
-| 1 | M8-S0R | DONE/P0：恢复禁止自报准入、v4 内容身份/严格数值、缺价原子拒绝、消费端正式日历；GPT 111 tests 通过，验收记录见 GPT 仓库 |
+| 1 | M8-S0R | DONE/P0：恢复禁止自报准入、v4 内容身份/严格数值、缺价原子拒绝、消费端正式日历；GPT 121 tests 通过，验收记录见 GPT 仓库 |
 | 2 | M8-S3a | OFFLINE DONE：共享 quant-contracts 源码、canonical hash、依赖声明、wheel 构建和全新临时环境安装/导入已通过 |
 | 3 | M8-S3b / S3c | OFFLINE DONE：SEC v2、审批/风控上下文绑定；真实 provider、签发权限和券商连接待外部验收 |
 | 4 | M8-S4a | OFFLINE DONE：受限抽取、原文引用、弃权、预算、超时与注入防护，新增 HTTPS provider gateway；真实凭据/服务验收待外部环境 |
-| 5 | M8-S4b | OFFLINE PARTIAL：已完成 trial 账本、B0–B3/负对照统计基础；SEC 增强 Radar、完整 evaluator 和终测报告仍待开发 |
+| 5 | M8-S4b | OFFLINE PARTIAL：已完成版本化 manifest、确定性 experiment ID、质量/成本压力/负对照 evaluator、报告和 final-test 单次消费；SEC 增强 Radar、真实 LLM 特征和终测数据仍待完成 |
 | 6 | M8-S5a / S5b | S5a OFFLINE DONE：审批到本地 Paper outbox/幂等恢复；S5b 仍需至少 63 个真实交易会话与独立事件量验收 |
 
 首个研究 MVP 为美股、日频、长仓、SEC 财报事件。CLI 继续承担唯一正式量化评价；GPT 新增组合/策略模块保留为兼容基准。M6-S3 的 IBKR 账户止损守护独立验收；M7-S9 物理合仓、API/UI、新引擎及更多策略延后。完整依赖和完成条件以统一设计第 10 节为准，本轮只改计划、不修业务代码。
@@ -104,8 +104,8 @@ Pro 的额度按 5 小时滚动窗口 + 每周上限计算。建议：
 
 ## 7. M8 下一代大模型研究系统（2026-09-01）
 
-- **S1 历史完成、当前 REGRESSED：** 历史实现过自报准入移除、信号内容身份、策略包绑定、有限数及缺价原子拒绝；当前 GPT 分支未保持这些约束，归 M8-S0R 恢复。原始 [M8-S1 验收记录](milestones/m8-s1-gate-hardening.md) 保留。
-- **S2 CLI 完成、GPT 消费端 REGRESSED：** CLI 仍冻结 `exchange_calendars==4.13.2` 和 v4 `calendar_id`；GPT 只检查前缀，执行仍是 weekday 日历，归 M8-S0R 恢复。原始 [M8-S2 验收记录](milestones/m8-s2-pinned-exchange-calendars.md) 保留。
+- **S1 历史回退已恢复：** M8-S0R 已恢复禁止自报准入、信号内容身份、策略包绑定、有限数及缺价原子拒绝；原始 [M8-S1 验收记录](milestones/m8-s1-gate-hardening.md) 保留作历史对照。
+- **S2 历史回退已恢复：** CLI 与 GPT 均冻结 `exchange_calendars==4.13.2` 和 v4 `calendar_id`，并校验假日、提前收市和 A 股午休；原始 [M8-S2 验收记录](milestones/m8-s2-pinned-exchange-calendars.md) 保留作历史对照。
 - **S3 PARTIAL：** SEC Evidence v1 离线存储/消费校验已实现；共享包、observed/reconstructed 时间、修订/事实与正式接入未完成，拆为 S3a/S3b；签名批准与风控上下文为 S3c。
 - **S4 PLANNED：** 拆为 S4a 真实模型抽取与 S4b 对照实验。已有 ResearchTask 只是字段契约，不等于完整研究工作流或证据验证。
 - **S5 PLANNED：** 新增端到端模拟链与前向验证。完成模块或增加模拟计日不能替代真实运行证据。

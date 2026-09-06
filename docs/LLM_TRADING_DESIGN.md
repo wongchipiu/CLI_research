@@ -15,7 +15,7 @@
 | 项目 | 本轮本地基线 | 验证结果与限制 |
 |---|---|---|
 | CLI_research | `master@3b2cd59` | Git 跟踪的测试文件：122 passed；大量未跟踪 `* 2.py` 等副本保留、未纳入该测试范围 |
-| gpt_quant | `main@f7ea460` | 工作区 111 tests OK，包含尚未提交的 `tasks.py/test_tasks.py`；两个计划文档原有修改已保留并在其基础上修订 |
+| gpt_quant | `main@0050d0d` | 工作区 121 tests OK，包含任务模块与本轮新增安全反例；两个计划文档原有修改已保留并在其基础上修订 |
 | 交叉验证 | 使用 CLI `.venv/bin/python`，显式读取两仓源码 | 仅本机离线合成测试；没有安装新依赖、读取原始行情或交易明细、调用模型、连接券商或运行风控服务 |
 
 CLI 测试使用 `git ls-files tests/test_*.py` 枚举后传给 `.venv/bin/python -B -m pytest -q -p no:cacheprovider`。GPT 使用 `PYTHONPATH=src ../CLI_research/.venv/bin/python -B -m unittest discover -s tests -q`。本机该虚拟环境不能直接 `import gpt_quant`；当前 adapter 通过源码 `PYTHONPATH` 找到兄弟仓库，因此还没有证明 wheel 安装可复现。
@@ -189,12 +189,12 @@ PIT 检索无法消除模型预训练已经见过未来结果的风险。记录�
 
 | 条目 | 状态/优先级 | 负责人模块与交付 | 完成条件 | 估算 |
 |---|---|---|---|---|
-| M8-S0R | DONE / P0 | GPT 消费端；恢复 M8-S1/S2 安全语义、RV-01–04 | 自报只能 PAPER、v2/v3 拒绝新执行、篡改/NaN/bool/缺价原子拒绝、假日/提前收市/日历漂移拒绝；GPT 111 tests 通过，详见 GPT 验收记录 | 完成 |
+| M8-S0R | DONE / P0 | GPT 消费端；恢复 M8-S1/S2 安全语义、RV-01–04 | 自报只能 PAPER、v2/v3 拒绝新执行、篡改/NaN/bool/缺价原子拒绝、假日/提前收市/午休/日历漂移拒绝；GPT 121 tests 通过，详见 GPT 验收记录 | 完成 |
 | M8-S3a | OFFLINE DONE / P1，依赖 S0R | GPT 维护 shared contracts wheel；两仓锁版本，canonical/schema/hash/calendar 基础已具备 | wheel 已生成并在全新临时环境无 PYTHONPATH 安装/导入通过；两仓完整发布矩阵与 golden fixture CI 仍需目标环境复核 | 完成 |
 | M8-S3b | OFFLINE DONE / P1，依赖 S3a | GPT SEC v2/事实/修订存储；CLI 校验消费 | observed 与 reconstructed 分开；迟到/修订/版本哈希/as-of 反例通过；真实 provider 待接入 | 完成 |
 | M8-S3c | OFFLINE DONE / P1，依赖 S3a | GPT RiskDecision、StrategyApproval、OrderApproval | 跨 intent/账户报告不可复用，过期/篡改阻断；签名上下文绑定；真实签发权限和券商减仓待验收 | 完成 |
 | M8-S4a | OFFLINE DONE / P1，依赖 S3b | GPT 受限特征抽取、引用/预算/超时/注入防护 | 引用可重定位、弃权和过期拒绝、预算/注入测试通过；真实 provider 与标注集待验收 | 完成 |
-| M8-S4b | OFFLINE PARTIAL / P1，依赖 S4a | CLI 实验注册已增加 manifest/trial ledger；B0–B3/负对照/统计终测仍待开发 | trial 预算、冻结和 final test 单次消费已可验收；完整对照、成本/容量和置信区间仍需实现 | 5–8 日 |
+| M8-S4b | OFFLINE PARTIAL / P1，依赖 S4a | CLI 已增加版本化 manifest、确定性 ID、B0–B3/N1–N2、质量/成本压力/容量门槛、bootstrap 报告和 final-test 单次消费 | evaluator 基线已可验收；SEC 增强 Radar、真实 LLM 特征、终测数据和完整统计报告仍需实现 | 继续 |
 | M8-S5a | OFFLINE DONE / P1，依赖 S3c 及合格研究证据 | GPT Paper 执行桥、审批/outbox 对接 | 审批后执行、缺价/重放/撤销拒绝、JSONL 重启幂等；部分成交、券商断线和真实对账待验收 | 完成 |
 | M8-S5b | PLANNED，依赖 S5a | shadow + 本地 paper；IBKR Paper 连接为独立适配验收 | 至少 63 个真实会话 + 独立事件量门槛 + 每日对账；模型漂移触发新版本评估 | 日历时间约一季度或更长 |
 | M6-S3 | PARTIAL，独立轨道 | CLI IBKR 账户级止损守护连续 Paper 验收 | 既有仿真不能替代真实 Paper 连接、夜间恢复、通知和账户身份核验 | 独立排期 |

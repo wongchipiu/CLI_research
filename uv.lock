@@ -450,10 +450,14 @@ version = "0.1.0"
 source = { directory = "../gpt_quant" }
 dependencies = [
     { name = "exchange-calendars" },
+    { name = "quant-contracts" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "exchange-calendars", specifier = "==4.13.2" }]
+requires-dist = [
+    { name = "exchange-calendars", specifier = "==4.13.2" },
+    { name = "quant-contracts", directory = "../gpt_quant/packages/quant_contracts" },
+]
 
 [[package]]
 name = "html5lib"
@@ -1303,6 +1307,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "pyyaml" },
+    { name = "quant-contracts" },
     { name = "yfinance" },
 ]
 
@@ -1326,12 +1331,18 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "pyarrow", specifier = ">=16" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "quant-contracts", directory = "../gpt_quant/packages/quant_contracts" },
     { name = "yfinance", specifier = ">=0.2.40" },
 ]
 provides-extras = ["integration"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]
+
+[[package]]
+name = "quant-contracts"
+version = "0.1.0"
+source = { directory = "../gpt_quant/packages/quant_contracts" }
 
 [[package]]
 name = "requests"
