@@ -11,6 +11,12 @@ cd /Users/brucehuang/Documents/CLI_research
 .venv/bin/python scripts/demo_research.py
 ```
 
+## 可视化操作台
+
+本仓库内的 [Quant Research Console](apps/quant-research-console/README.md) 是面向
+`CLI_research` 与相邻 `gpt_quant` 的本地可视化操作台。它独立管理 Node 依赖与构建，
+但通过稳定 CLI 和版本化 JSON 契约调用研究能力，避免重复实现回测、风控或验证逻辑。
+
 使用合成数据完成一次研究演示，并打印 `metrics.json` 路径。示例不可用于交易准入。
 
 模拟账本的信号重放与价格时效练习：
